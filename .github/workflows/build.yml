@@ -1,0 +1,47 @@
+name: build
+
+on:
+  push:            # every branch, and tags (v* tags also publish a Release)
+  workflow_dispatch:
+
+permissions:
+  contents: write  # needed to attach the .exe to a Release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Unit tests
+        run: cargo test
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Selftest (15 s)
+        shell: pwsh
+        run: |
+          # The release exe is a GUI-subsystem app: redirect its output to files, then print them.
+          $p = Start-Process -FilePath target\release\activity-tracker.exe -ArgumentList '--selftest' `
+                 -Wait -PassThru -NoNewWindow `
+                 -RedirectStandardOutput selftest.txt -RedirectStandardError selftest-err.txt
+          Get-Content selftest.txt
+          Get-Content selftest-err.txt
+          "exe size: {0:N0} bytes" -f (Get-Item target\release\activity-tracker.exe).Length
+          if ($p.ExitCode -ne 0) { Write-Error "selftest exit code $($p.ExitCode)"; exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: activity-tracker
+          path: target/release/activity-tracker.exe
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/release/activity-tracker.exe

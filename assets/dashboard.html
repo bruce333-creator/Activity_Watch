@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Activity Tracker</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #121211; --surface: #1a1a19; --border: #2c2c2a;
+  --text: #f0efec; --text-2: #c3c2b7; --muted: #8d8c85;
+  --active: #3987e5; --render: #d95926; --other: #199e70;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+h1 { font-size: 18px; font-weight: 600; margin: 0; }
+h1 small { color: var(--muted); font-weight: 400; margin-left: 8px; }
+.tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+.tabs button { background: none; border: 0; color: var(--text-2); padding: 6px 14px; border-radius: 6px; cursor: pointer; font: inherit; }
+.tabs button.on { background: #2c2c2a; color: var(--text); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.kpi .label { color: var(--text-2); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.kpi .value { font-size: 26px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.kpi .sub { color: var(--muted); font-size: 12px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
+.grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 12px; }
+@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+h2 { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 0 0 12px; }
+.chart { position: relative; height: 260px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 500; font-size: 12px; }
+td.n, th.n { text-align: right; }
+.tag { font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin-left: 6px; }
+.empty { color: var(--muted); padding: 24px 0; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Activity Tracker<small id="period"></small></h1>
+    <div class="tabs" role="tablist">
+      <button data-r="today" class="on">Aujourd'hui</button>
+      <button data-r="week">Semaine</button>
+      <button data-r="month">Mois</button>
+    </div>
+  </header>
+
+  <section class="kpis">
+    <div class="card kpi"><div class="label"><span class="dot" style="background:var(--active)"></span>Temps actif</div><div class="value" id="k-active">–</div><div class="sub">devant le PC</div></div>
+    <div class="card kpi"><div class="label"><span class="dot" style="background:var(--render)"></span>Rendu</div><div class="value" id="k-render">–</div><div class="sub">pendant l'inactivité</div></div>
+    <div class="card kpi"><div class="label">Part 3D</div><div class="value" id="k-3d">–</div><div class="sub" id="k-3d-sub"></div></div>
+    <div class="card kpi"><div class="label">App principale</div><div class="value" id="k-top" style="font-size:20px">–</div><div class="sub" id="k-top-sub"></div></div>
+  </section>
+
+  <section class="card" style="margin-bottom:12px">
+    <h2 id="tl-title">Chronologie</h2>
+    <div class="chart"><canvas id="c-timeline"></canvas></div>
+  </section>
+
+  <section class="grid">
+    <div class="card"><h2>Temps par application</h2><div class="chart" id="apps-wrap"><canvas id="c-apps"></canvas></div></div>
+    <div class="card"><h2>3D vs autres apps (temps actif)</h2><div class="chart"><canvas id="c-share"></canvas></div></div>
+  </section>
+
+  <section class="card">
+    <h2>Détail</h2>
+    <table><thead><tr><th>Application</th><th>Processus</th><th class="n">Actif</th><th class="n">Rendu</th><th class="n">Part</th></tr></thead>
+    <tbody id="t-apps"></tbody></table>
+  </section>
+</main>
+
+<script>/*CHARTJS*/</script>
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const C = { active: css('--active'), render: css('--render'), other: css('--other'),
+  text2: css('--text-2'), muted: css('--muted'), border: css('--border'), surface: css('--surface') };
+Chart.defaults.color = C.text2;
+Chart.defaults.borderColor = C.border;
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+Chart.defaults.animation = false;
+Chart.defaults.plugins.tooltip.callbacks.label = c => ` ${c.dataset.label || c.label}: ${fmt(c.raw * (c.chart.$unit || 1))}`;
+
+function fmt(s) {
+  s = Math.round(s);
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  return h ? `${h} h ${String(m).padStart(2, '0')}` : `${m} min`;
+}
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const charts = {};
+function draw(id, cfg) { charts[id]?.destroy(); charts[id] = new Chart(document.getElementById(id), cfg); return charts[id]; }
+const bar = { borderRadius: 4, borderSkipped: 'start', borderWidth: 0, maxBarThickness: 28 };
+
+async function load(range) {
+  const d = await (await fetch('/api/summary?range=' + range)).json();
+  document.getElementById('period').textContent = d.from === d.to ? d.from : `${d.from} → ${d.to}`;
+  document.getElementById('k-active').textContent = fmt(d.total_active);
+  document.getElementById('k-render').textContent = fmt(d.total_render);
+  const pct = d.total_active ? Math.round(100 * d.active_3d / d.total_active) : 0;
+  document.getElementById('k-3d').textContent = d.total_active ? pct + ' %' : '–';
+  document.getElementById('k-3d-sub').textContent = fmt(d.active_3d) + ' en 3D';
+  const top = [...d.apps].sort((a, b) => b.active - a.active)[0];
+  document.getElementById('k-top').textContent = top && top.active ? top.name : '–';
+  document.getElementById('k-top-sub').textContent = top && top.active ? fmt(top.active) : '';
+
+  // Timeline: hours (today) or days, in hours/minutes.
+  const hourly = d.range === 'today';
+  const unit = hourly ? 60 : 3600;
+  document.getElementById('tl-title').textContent = hourly ? 'Chronologie (minutes par heure)' : 'Chronologie (heures par jour)';
+  const labels = d.timeline.map(b => hourly ? b.label : new Date(b.label + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }));
+  const tl = draw('c-timeline', { type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Actif', data: d.timeline.map(b => b.active / unit), backgroundColor: C.active, ...bar },
+      { label: 'Rendu', data: d.timeline.map(b => b.render / unit), backgroundColor: C.render, ...bar } ] },
+    options: { maintainAspectRatio: false,
+      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: C.border } } },
+      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 10, boxHeight: 10 } } } } });
+  tl.$unit = unit;
+
+  // Per-app horizontal stacked bars (top 12).
+  const apps = d.apps.slice(0, 12);
+  document.getElementById('apps-wrap').style.height = Math.max(160, apps.length * 30 + 40) + 'px';
+  const ac = draw('c-apps', { type: 'bar',
+    data: { labels: apps.map(a => a.name), datasets: [
+      { label: 'Actif', data: apps.map(a => a.active / 3600), backgroundColor: C.active, ...bar },
+      { label: 'Rendu', data: apps.map(a => a.render / 3600), backgroundColor: C.render, ...bar } ] },
+    options: { indexAxis: 'y', maintainAspectRatio: false,
+      scales: { x: { stacked: true, beginAtZero: true, grid: { color: C.border }, title: { display: true, text: 'heures', color: C.muted } },
+                y: { stacked: true, grid: { display: false } } },
+      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 10, boxHeight: 10 } } } } });
+  ac.$unit = 3600;
+
+  draw('c-share', { type: 'doughnut',
+    data: { labels: ['3D / création', 'Autres apps'], datasets: [{ data: [d.active_3d, d.active_other],
+      backgroundColor: [C.active, C.other], borderColor: C.surface, borderWidth: 2 }] },
+    options: { maintainAspectRatio: false, cutout: '62%',
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } } } } });
+
+  const total = d.total_active + d.total_render;
+  document.getElementById('t-apps').innerHTML = d.apps.length ? d.apps.map(a => `<tr>
+    <td>${esc(a.name)}${a.is_3d ? '<span class="tag">3D</span>' : ''}</td><td style="color:var(--muted)">${esc(a.process)}</td>
+    <td class="n">${a.active ? fmt(a.active) : '–'}</td><td class="n">${a.render ? fmt(a.render) : '–'}</td>
+    <td class="n">${total ? Math.round(100 * (a.active + a.render) / total) : 0} %</td></tr>`).join('')
+    : '<tr><td colspan="5" class="empty">Aucune donnée pour cette période.</td></tr>';
+}
+
+let range = 'today';
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  range = b.dataset.r; load(range);
+});
+load(range);
+setInterval(() => { if (!document.hidden) load(range); }, 60000);
+</script>
+</body>
+</html>
