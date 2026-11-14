@@ -1,29 +1,13 @@
 //! SQLite storage (WAL). One row per session. Platform independent.
 
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use std::path::Path;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    Active,
-    Render,
-}
-
-impl Kind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Kind::Active => "active",
-            Kind::Render => "render",
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Session {
     pub start: i64,
     pub end: i64,
     pub process: String,
-    pub kind: Kind,
 }
 
 pub struct Store {
@@ -42,6 +26,7 @@ impl Store {
     fn init(conn: Connection) -> rusqlite::Result<Store> {
         // journal_mode returns a row, so it is queried rather than executed.
         let _: String = conn.query_row("PRAGMA journal_mode=WAL", [], |r| r.get(0))?;
+        // `kind` is kept for databases written by v0.1 (which also recorded 'render' rows).
         conn.execute_batch(
             "PRAGMA synchronous=NORMAL;
              PRAGMA busy_timeout=2000;
@@ -50,17 +35,20 @@ impl Store {
                  start INTEGER NOT NULL,
                  end INTEGER NOT NULL,
                  process TEXT NOT NULL,
-                 kind TEXT NOT NULL);
-             CREATE INDEX IF NOT EXISTS sessions_start ON sessions(start);",
+                 kind TEXT NOT NULL DEFAULT 'active');
+             CREATE INDEX IF NOT EXISTS sessions_start ON sessions(start);
+             CREATE TABLE IF NOT EXISTS apps(
+                 process TEXT PRIMARY KEY,
+                 path TEXT NOT NULL);",
         )?;
         Ok(Store { conn })
     }
 
     /// Starts a session row; returns its id. `end` is updated later.
-    pub fn insert(&self, start: i64, end: i64, process: &str, kind: Kind) -> rusqlite::Result<i64> {
+    pub fn insert(&self, start: i64, end: i64, process: &str) -> rusqlite::Result<i64> {
         self.conn.execute(
-            "INSERT INTO sessions(start, end, process, kind) VALUES (?1, ?2, ?3, ?4)",
-            params![start, end, process, kind.as_str()],
+            "INSERT INTO sessions(start, end, process, kind) VALUES (?1, ?2, ?3, 'active')",
+            params![start, end, process],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
@@ -73,23 +61,39 @@ impl Store {
         Ok(())
     }
 
-    /// Sessions overlapping [from, to).
+    /// Remembers where an app's exe lives (for its icon).
+    pub fn set_app_path(&self, process: &str, path: &str) -> rusqlite::Result<()> {
+        if !path.is_empty() {
+            self.conn.execute(
+                "INSERT INTO apps(process, path) VALUES (?1, ?2)
+                 ON CONFLICT(process) DO UPDATE SET path = excluded.path",
+                params![process, path],
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn app_path(&self, process: &str) -> Option<String> {
+        self.conn
+            .query_row("SELECT path FROM apps WHERE process = ?1", [process], |r| {
+                r.get(0)
+            })
+            .optional()
+            .ok()
+            .flatten()
+    }
+
+    /// Active sessions overlapping [from, to).
     pub fn sessions_between(&self, from: i64, to: i64) -> rusqlite::Result<Vec<Session>> {
         let mut st = self.conn.prepare_cached(
-            "SELECT start, end, process, kind FROM sessions
-             WHERE start < ?2 AND end > ?1 ORDER BY start",
+            "SELECT start, end, process FROM sessions
+             WHERE start < ?2 AND end > ?1 AND kind = 'active' ORDER BY start",
         )?;
         let rows = st.query_map(params![from, to], |r| {
-            let kind: String = r.get(3)?;
             Ok(Session {
                 start: r.get(0)?,
                 end: r.get(1)?,
                 process: r.get(2)?,
-                kind: if kind == "render" {
-                    Kind::Render
-                } else {
-                    Kind::Active
-                },
             })
         })?;
         rows.collect()

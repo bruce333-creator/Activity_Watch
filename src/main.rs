@@ -6,6 +6,7 @@
 mod collector;
 mod config;
 mod log;
+mod png;
 mod probe;
 mod server;
 mod stats;

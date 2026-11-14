@@ -4,157 +4,299 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Activity Tracker</title>
+<link rel="icon" href="/favicon.ico">
 <style>
 :root {
   color-scheme: dark;
-  --bg: #121211; --surface: #1a1a19; --border: #2c2c2a;
-  --text: #f0efec; --text-2: #c3c2b7; --muted: #8d8c85;
-  --active: #3987e5; --render: #d95926; --other: #199e70;
+  --bg: #0d0e12; --card: #15161c; --card-2: #1b1c24; --line: rgba(255,255,255,.07);
+  --text: #f1f0ee; --text-2: #b9b8c3; --muted: #7d7c88;
+  --accent: #8b7bff; --accent-2: #22d3ee; --good: #34c77b; --warn: #f5b041;
+  --grad: linear-gradient(135deg, #7c5cff 0%, #22d3ee 100%);
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text);
-  font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
-main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
-header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-h1 { font-size: 18px; font-weight: 600; margin: 0; }
-h1 small { color: var(--muted); font-weight: 400; margin-left: 8px; }
-.tabs { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
-.tabs button { background: none; border: 0; color: var(--text-2); padding: 6px 14px; border-radius: 6px; cursor: pointer; font: inherit; }
-.tabs button.on { background: #2c2c2a; color: var(--text); }
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
-.kpi .label { color: var(--text-2); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-.kpi .value { font-size: 26px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
-.kpi .sub { color: var(--muted); font-size: 12px; }
-.dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
-.grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 12px; }
-@media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
-h2 { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 0 0 12px; }
-.chart { position: relative; height: 260px; }
-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); }
-th { color: var(--muted); font-weight: 500; font-size: 12px; }
-td.n, th.n { text-align: right; }
-.tag { font-size: 11px; color: var(--text-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; margin-left: 6px; }
-.empty { color: var(--muted); padding: 24px 0; text-align: center; }
+html { background: var(--bg); }
+body { margin: 0; color: var(--text); font: 14px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  background: radial-gradient(900px 420px at 15% -10%, rgba(124,92,255,.16), transparent 70%),
+              radial-gradient(700px 380px at 95% 0%, rgba(34,211,238,.09), transparent 70%), var(--bg);
+  min-height: 100vh; }
+main { max-width: 1080px; margin: 0 auto; padding: 28px 16px 64px; }
+header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 26px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand img { width: 36px; height: 36px; }
+.brand b { font-size: 17px; font-weight: 650; letter-spacing: -.01em; display: block; }
+.brand span { color: var(--muted); font-size: 12.5px; }
+nav { display: flex; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
+nav a { color: var(--text-2); text-decoration: none; padding: 7px 14px; border-radius: 9px; font-weight: 500; transition: background .15s, color .15s; white-space: nowrap; }
+nav a:hover { color: var(--text); }
+nav a.on { background: var(--card-2); color: var(--text); box-shadow: 0 1px 0 rgba(255,255,255,.05) inset; }
+nav a.wr.on { background: var(--grad); color: #fff; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; }
+.label { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+h2 { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
+.row { display: grid; gap: 14px; margin-bottom: 14px; }
+.hero { grid-template-columns: 1.6fr 1fr; }
+.four { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 860px) { .hero { grid-template-columns: 1fr; } .four { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { nav a { padding: 7px 9px; } .big { font-size: 44px; } .tile .v { font-size: 20px; } }
+.big { font-size: 56px; font-weight: 700; letter-spacing: -.03em; line-height: 1.05; margin: 8px 0 12px; font-variant-numeric: tabular-nums; }
+.big small { font-size: 24px; color: var(--text-2); font-weight: 600; margin-left: 2px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
+  background: var(--card-2); color: var(--text-2); border: 1px solid var(--line); }
+.chip.up { color: #ffb38a; } .chip.down { color: #7fe0b0; }
+.sub { color: var(--text-2); font-size: 13px; margin-top: 10px; }
+.goal { display: flex; align-items: center; gap: 18px; }
+.goal svg { flex: none; }
+.goal .v { font-size: 22px; font-weight: 700; }
+.tile .ico { font-size: 20px; }
+.tile .v { font-size: 24px; font-weight: 650; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.tile .hint { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.tile .hint.warn { color: var(--warn); } .tile .hint.ok { color: var(--good); }
+.strip { position: relative; height: 34px; border-radius: 9px; background: var(--card-2); overflow: hidden; margin: 6px 0 4px; }
+.strip i { position: absolute; top: 0; bottom: 0; border-right: 1px solid var(--card); min-width: 2px; }
+.ticks { position: relative; height: 18px; color: var(--muted); font-size: 11px; margin-bottom: 18px; }
+.ticks span { position: absolute; transform: translateX(-50%); }
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 170px; position: relative; padding-top: 6px; }
+.bars .b { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; min-width: 0; cursor: default; }
+.bars .b i { display: block; width: 100%; max-width: 34px; border-radius: 5px 5px 2px 2px; background: linear-gradient(180deg, #9d8cff, #6c5ce7); min-height: 2px; }
+.bars .b.zero i { background: var(--card-2); }
+.bars .b:hover i { filter: brightness(1.25); }
+.bars .b.over i { background: linear-gradient(180deg, #ffc46b, #e8902a); }
+.bars .goal-line { position: absolute; left: 0; right: 0; border-top: 1.5px dashed rgba(245,176,65,.55); pointer-events: none; }
+.bars .goal-line span { position: absolute; right: 0; top: -18px; font-size: 11px; color: var(--warn); }
+.xl { display: flex; gap: 4px; margin-top: 6px; color: var(--muted); font-size: 11px; }
+.xl span { flex: 1; text-align: center; min-width: 0; white-space: nowrap; }
+.apps { display: flex; flex-direction: column; gap: 4px; }
+.app { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 8px 6px; border-radius: 10px; }
+.app:hover { background: var(--card-2); }
+.app .name { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+.app .name span { color: var(--muted); font-weight: 500; font-size: 12.5px; }
+.app .track { height: 6px; background: var(--card-2); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+.app .track i { display: block; height: 100%; border-radius: 3px; }
+.app .t { font-weight: 650; font-variant-numeric: tabular-nums; min-width: 64px; text-align: right; }
+.avatar { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 15px; overflow: hidden; }
+.avatar { position: relative; }
+.avatar img { position: absolute; width: 32px; height: 32px; }
+.empty { color: var(--muted); text-align: center; padding: 30px 0; }
+#tip { position: fixed; pointer-events: none; background: #23242e; border: 1px solid var(--line); color: var(--text); font-size: 12.5px;
+  padding: 6px 10px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.4); opacity: 0; transition: opacity .1s; z-index: 10; white-space: nowrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--text-2); font-size: 12.5px; }
+.legend b { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; }
+
+/* Wrapped */
+.w-hero { position: relative; overflow: hidden; border-radius: 24px; padding: 34px 30px; background: var(--grad); color: #fff; margin-bottom: 14px; }
+.w-hero::after { content: ""; position: absolute; inset: auto -80px -120px auto; width: 340px; height: 340px; border-radius: 50%; background: rgba(255,255,255,.12); }
+.w-hero .week { opacity: .85; font-weight: 600; }
+.w-hero .emoji { font-size: 64px; line-height: 1; margin: 18px 0 8px; }
+.w-hero h1 { font-size: 40px; margin: 0; letter-spacing: -.02em; }
+.w-hero p { font-size: 16px; margin: 6px 0 0; opacity: .92; max-width: 560px; }
+.w-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.w-nav button { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 7px 14px; font: inherit; cursor: pointer; }
+.w-nav button:disabled { opacity: .35; cursor: default; }
+.three { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 860px) { .three { grid-template-columns: 1fr; } }
+.stat .v { font-size: 34px; font-weight: 700; letter-spacing: -.02em; margin: 6px 0 2px; }
+.stat .d { color: var(--text-2); }
+.top1 { display: flex; align-items: center; gap: 16px; margin-top: 10px; }
+.top1 .avatar { width: 64px; height: 64px; border-radius: 16px; font-size: 26px; }
+.top1 .avatar img { width: 48px; height: 48px; }
+.rank { counter-reset: r; display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.rank > div { display: grid; grid-template-columns: 22px 34px 1fr auto; align-items: center; gap: 10px; }
+.rank > div::before { counter-increment: r; content: counter(r); color: var(--muted); font-weight: 700; }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>Activity Tracker<small id="period"></small></h1>
-    <div class="tabs" role="tablist">
-      <button data-r="today" class="on">Aujourd'hui</button>
-      <button data-r="week">Semaine</button>
-      <button data-r="month">Mois</button>
-    </div>
+    <div class="brand"><img src="/logo.png" alt=""><div><b>Activity Tracker</b><span id="period">&nbsp;</span></div></div>
+    <nav>
+      <a href="#today">Aujourd'hui</a><a href="#week">Semaine</a><a href="#month">Mois</a><a href="#wrapped" class="wr">✨ Wrapped</a>
+    </nav>
   </header>
-
-  <section class="kpis">
-    <div class="card kpi"><div class="label"><span class="dot" style="background:var(--active)"></span>Temps actif</div><div class="value" id="k-active">–</div><div class="sub">devant le PC</div></div>
-    <div class="card kpi"><div class="label"><span class="dot" style="background:var(--render)"></span>Rendu</div><div class="value" id="k-render">–</div><div class="sub">pendant l'inactivité</div></div>
-    <div class="card kpi"><div class="label">Part 3D</div><div class="value" id="k-3d">–</div><div class="sub" id="k-3d-sub"></div></div>
-    <div class="card kpi"><div class="label">App principale</div><div class="value" id="k-top" style="font-size:20px">–</div><div class="sub" id="k-top-sub"></div></div>
-  </section>
-
-  <section class="card" style="margin-bottom:12px">
-    <h2 id="tl-title">Chronologie</h2>
-    <div class="chart"><canvas id="c-timeline"></canvas></div>
-  </section>
-
-  <section class="grid">
-    <div class="card"><h2>Temps par application</h2><div class="chart" id="apps-wrap"><canvas id="c-apps"></canvas></div></div>
-    <div class="card"><h2>3D vs autres apps (temps actif)</h2><div class="chart"><canvas id="c-share"></canvas></div></div>
-  </section>
-
-  <section class="card">
-    <h2>Détail</h2>
-    <table><thead><tr><th>Application</th><th>Processus</th><th class="n">Actif</th><th class="n">Rendu</th><th class="n">Part</th></tr></thead>
-    <tbody id="t-apps"></tbody></table>
-  </section>
+  <div id="view"></div>
 </main>
+<div id="tip"></div>
 
-<script>/*CHARTJS*/</script>
 <script>
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const C = { active: css('--active'), render: css('--render'), other: css('--other'),
-  text2: css('--text-2'), muted: css('--muted'), border: css('--border'), surface: css('--surface') };
-Chart.defaults.color = C.text2;
-Chart.defaults.borderColor = C.border;
-Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
-Chart.defaults.animation = false;
-Chart.defaults.plugins.tooltip.callbacks.label = c => ` ${c.dataset.label || c.label}: ${fmt(c.raw * (c.chart.$unit || 1))}`;
+const PALETTE = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9', '#e66767', '#2fa6b8'];
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function fmt(s) {
-  s = Math.round(s);
+  s = Math.round(s || 0);
+  if (s < 60) return s > 0 ? '< 1 min' : '0 min';
   const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
   return h ? `${h} h ${String(m).padStart(2, '0')}` : `${m} min`;
 }
-const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const charts = {};
-function draw(id, cfg) { charts[id]?.destroy(); charts[id] = new Chart(document.getElementById(id), cfg); return charts[id]; }
-const bar = { borderRadius: 4, borderSkipped: 'start', borderWidth: 0, maxBarThickness: 28 };
-
-async function load(range) {
-  const d = await (await fetch('/api/summary?range=' + range)).json();
-  document.getElementById('period').textContent = d.from === d.to ? d.from : `${d.from} → ${d.to}`;
-  document.getElementById('k-active').textContent = fmt(d.total_active);
-  document.getElementById('k-render').textContent = fmt(d.total_render);
-  const pct = d.total_active ? Math.round(100 * d.active_3d / d.total_active) : 0;
-  document.getElementById('k-3d').textContent = d.total_active ? pct + ' %' : '–';
-  document.getElementById('k-3d-sub').textContent = fmt(d.active_3d) + ' en 3D';
-  const top = [...d.apps].sort((a, b) => b.active - a.active)[0];
-  document.getElementById('k-top').textContent = top && top.active ? top.name : '–';
-  document.getElementById('k-top-sub').textContent = top && top.active ? fmt(top.active) : '';
-
-  // Timeline: hours (today) or days, in hours/minutes.
-  const hourly = d.range === 'today';
-  const unit = hourly ? 60 : 3600;
-  document.getElementById('tl-title').textContent = hourly ? 'Chronologie (minutes par heure)' : 'Chronologie (heures par jour)';
-  const labels = d.timeline.map(b => hourly ? b.label : new Date(b.label + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric' }));
-  const tl = draw('c-timeline', { type: 'bar',
-    data: { labels, datasets: [
-      { label: 'Actif', data: d.timeline.map(b => b.active / unit), backgroundColor: C.active, ...bar },
-      { label: 'Rendu', data: d.timeline.map(b => b.render / unit), backgroundColor: C.render, ...bar } ] },
-    options: { maintainAspectRatio: false,
-      scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, grid: { color: C.border } } },
-      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 10, boxHeight: 10 } } } } });
-  tl.$unit = unit;
-
-  // Per-app horizontal stacked bars (top 12).
-  const apps = d.apps.slice(0, 12);
-  document.getElementById('apps-wrap').style.height = Math.max(160, apps.length * 30 + 40) + 'px';
-  const ac = draw('c-apps', { type: 'bar',
-    data: { labels: apps.map(a => a.name), datasets: [
-      { label: 'Actif', data: apps.map(a => a.active / 3600), backgroundColor: C.active, ...bar },
-      { label: 'Rendu', data: apps.map(a => a.render / 3600), backgroundColor: C.render, ...bar } ] },
-    options: { indexAxis: 'y', maintainAspectRatio: false,
-      scales: { x: { stacked: true, beginAtZero: true, grid: { color: C.border }, title: { display: true, text: 'heures', color: C.muted } },
-                y: { stacked: true, grid: { display: false } } },
-      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 10, boxHeight: 10 } } } } });
-  ac.$unit = 3600;
-
-  draw('c-share', { type: 'doughnut',
-    data: { labels: ['3D / création', 'Autres apps'], datasets: [{ data: [d.active_3d, d.active_other],
-      backgroundColor: [C.active, C.other], borderColor: C.surface, borderWidth: 2 }] },
-    options: { maintainAspectRatio: false, cutout: '62%',
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, boxHeight: 10 } } } } });
-
-  const total = d.total_active + d.total_render;
-  document.getElementById('t-apps').innerHTML = d.apps.length ? d.apps.map(a => `<tr>
-    <td>${esc(a.name)}${a.is_3d ? '<span class="tag">3D</span>' : ''}</td><td style="color:var(--muted)">${esc(a.process)}</td>
-    <td class="n">${a.active ? fmt(a.active) : '–'}</td><td class="n">${a.render ? fmt(a.render) : '–'}</td>
-    <td class="n">${total ? Math.round(100 * (a.active + a.render) / total) : 0} %</td></tr>`).join('')
-    : '<tr><td colspan="5" class="empty">Aucune donnée pour cette période.</td></tr>';
+function fmtBig(s) {
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  return h ? `${h}<small>h</small> ${String(m).padStart(2, '0')}<small>min</small>` : `${m}<small>min</small>`;
+}
+const clock = t => t == null ? '–' : `${String(Math.floor(t / 3600) % 24).padStart(2, '0')}:${String(Math.floor(t % 3600 / 60)).padStart(2, '0')}`;
+const day = (label, opts) => new Date(label + 'T12:00').toLocaleDateString('fr-FR', opts);
+// Colors are given in order of time spent, so the top apps never share a color on a page.
+let colors = {};
+function setColors(apps) { colors = {}; apps.forEach((a, i) => colors[a.name] = PALETTE[i % PALETTE.length]); }
+const color = name => colors[name] || '#5b5a66';
+function avatar(a) {
+  // Real exe icon when available, colored initial otherwise.
+  return `<div class="avatar" style="background:${color(a.name)}"><img src="/icon/${encodeURIComponent(a.process)}" alt=""
+    onload="this.parentNode.style.background='transparent';this.nextSibling.remove()" onerror="this.remove()"><span>${esc(a.name[0] || '?').toUpperCase()}</span></div>`;
+}
+function delta(cur, prev, what) {
+  if (!prev) return `<span class="chip">Pas encore de comparaison ${what}</span>`;
+  const p = Math.round(100 * (cur - prev) / prev);
+  if (p === 0) return `<span class="chip">= ${what}</span>`;
+  return `<span class="chip ${p > 0 ? 'up' : 'down'}">${p > 0 ? '▲' : '▼'} ${Math.abs(p)} % ${what}</span>`;
+}
+function ring(value, goal) {
+  const r = 46, c = 2 * Math.PI * r, f = goal ? Math.min(value / goal, 1) : 0, over = goal && value > goal;
+  return `<svg width="116" height="116" viewBox="0 0 116 116" aria-hidden="true">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+    <circle cx="58" cy="58" r="${r}" fill="none" stroke="#24252f" stroke-width="12"/>
+    <circle cx="58" cy="58" r="${r}" fill="none" stroke="${over ? '#f5b041' : 'url(#g)'}" stroke-width="12" stroke-linecap="round"
+      stroke-dasharray="${c * f} ${c}" transform="rotate(-90 58 58)"/>
+    <text x="58" y="64" text-anchor="middle" fill="#f1f0ee" font-size="20" font-weight="700">${goal ? Math.round(100 * value / goal) : 0}%</text></svg>`;
+}
+// Bars with hover tooltips. items: [{label, tip, value}], unit for the scale.
+function bars(items, goal) {
+  const max = Math.max(1, goal || 0, ...items.map(i => i.value)) * 1.08;
+  const line = goal ? `<div class="goal-line" style="bottom:${100 * goal / max}%"><span>objectif</span></div>` : '';
+  return `<div class="bars">${line}${items.map(i => `<div class="b ${i.value ? '' : 'zero'} ${goal && i.value > goal ? 'over' : ''}" data-tip="${esc(i.tip)}">
+    <i style="height:${Math.max(1.5, 100 * i.value / max)}%"></i></div>`).join('')}</div>
+    <div class="xl">${items.map(i => `<span>${esc(i.label)}</span>`).join('')}</div>`;
+}
+function appList(apps, total) {
+  if (!apps.length) return '<div class="empty">Aucune activité pour cette période.</div>';
+  const max = apps[0].seconds;
+  return `<div class="apps">${apps.map(a => `<div class="app">${avatar(a)}
+    <div><div class="name">${esc(a.name)}<span>${total ? Math.round(100 * a.seconds / total) : 0} %</span></div>
+    <div class="track"><i style="width:${100 * a.seconds / max}%;background:${color(a.name)}"></i></div></div>
+    <div class="t">${fmt(a.seconds)}</div></div>`).join('')}</div>`;
 }
 
-let range = 'today';
-document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
-  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
-  range = b.dataset.r; load(range);
+async function getJSON(url) { const r = await fetch(url); return r.json(); }
+
+async function showRange(range) {
+  const d = await getJSON('/api/summary?range=' + range);
+  setColors(d.apps);
+  $('#period').textContent = d.from === d.to ? day(d.from, { weekday: 'long', day: 'numeric', month: 'long' })
+    : `${day(d.from, { day: 'numeric', month: 'short' })} → ${day(d.to, { day: 'numeric', month: 'short' })}`;
+  const w = d.wellbeing, today = range === 'today';
+  const avg = d.total / Math.max(1, d.days_elapsed);
+  const vs = { today: "vs hier à la même heure", week: 'vs la semaine dernière', month: 'vs le mois dernier' }[range];
+  const ringVal = today ? d.total : avg;
+  const goalText = !d.goal ? 'Aucun objectif défini' : ringVal > d.goal
+    ? `Objectif de ${fmt(d.goal)} dépassé de ${fmt(ringVal - d.goal)}` : `Encore ${fmt(d.goal - ringVal)} avant l'objectif de ${fmt(d.goal)}`;
+  const longOk = w.longest_stretch <= 90 * 60;
+
+  let timeline;
+  if (today) {
+    const segs = d.segments;
+    const first = segs.length ? segs[0].start : 9 * 3600, last = segs.length ? segs[segs.length - 1].end : 18 * 3600;
+    const h0 = Math.min(8, Math.floor(first / 3600)), h1 = Math.max(20, Math.ceil(last / 3600));
+    const span = (h1 - h0) * 3600, x = t => 100 * (t - h0 * 3600) / span;
+    const names = [...new Set(segs.map(s => s.name))];
+    const ticks = []; for (let h = h0; h <= h1; h += (h1 - h0 > 14 ? 3 : 2)) ticks.push(h);
+    timeline = `<h2>Ta journée</h2>
+      <div class="strip">${segs.map(s => `<i data-tip="${esc(s.name)} · ${clock(s.start)}–${clock(s.end)} · ${fmt(s.end - s.start)}"
+        style="left:${x(s.start)}%;width:${x(s.end) - x(s.start)}%;background:${color(s.name)}"></i>`).join('')}</div>
+      <div class="ticks">${ticks.map(h => `<span style="left:${x(h * 3600)}%">${h % 24}h</span>`).join('')}</div>
+      <div class="legend" style="margin-bottom:22px">${names.slice(0, 10).map(n => `<span><b style="background:${color(n)}"></b>${esc(n)}</span>`).join('')}</div>
+      <h2>Minutes par heure</h2>
+      ${bars(d.timeline.map((b, i) => ({ label: i % 3 ? '' : b.label, tip: `${b.label} · ${fmt(b.seconds)}`, value: b.seconds / 60 })))}`;
+  } else {
+    const opts = range === 'week' ? { weekday: 'short' } : { day: 'numeric' };
+    timeline = `<h2>Heures par jour</h2>${bars(d.timeline.map(b => ({ label: day(b.label, opts),
+      tip: `${day(b.label, { weekday: 'long', day: 'numeric', month: 'long' })} · ${fmt(b.seconds)}`, value: b.seconds / 3600 })), d.goal / 3600)}`;
+  }
+
+  $('#view').innerHTML = `
+  <section class="row hero">
+    <div class="card"><div class="label">${today ? "Temps d'écran aujourd'hui" : `Temps d'écran ${range === 'week' ? 'cette semaine' : 'ce mois-ci'}`}</div>
+      <div class="big">${fmtBig(d.total)}</div>${delta(d.total, d.previous_total, vs)}
+      ${today ? '' : `<div class="sub">Moyenne : <b>${fmt(avg)}</b> par jour sur ${d.days_elapsed} jour${d.days_elapsed > 1 ? 's' : ''}</div>`}</div>
+    <div class="card goal">${ring(ringVal, d.goal)}<div><div class="label">${today ? 'Objectif du jour' : 'Moyenne vs objectif'}</div>
+      <div class="v">${fmt(ringVal)}</div><div class="sub" style="margin-top:2px">${goalText}</div></div></div>
+  </section>
+  <section class="row four">
+    <div class="card tile"><div class="ico">☕</div><div class="label">Pauses</div><div class="v">${w.breaks}</div>
+      <div class="hint">d'au moins quelques minutes</div></div>
+    <div class="card tile"><div class="ico">⏱️</div><div class="label">Plus long sans pause</div><div class="v">${fmt(w.longest_stretch)}</div>
+      <div class="hint ${w.longest_stretch ? (longOk ? 'ok' : 'warn') : ''}">${!w.longest_stretch ? '–' : longOk ? 'Bon rythme 👍' : 'Pense à une pause toutes les 60–90 min'}</div></div>
+    <div class="card tile"><div class="ico">🌅</div><div class="label">${today ? 'Journée' : 'Plus tôt → plus tard'}</div>
+      <div class="v">${clock(w.first_start)} → ${clock(w.last_end)}</div><div class="hint">premier et dernier usage</div></div>
+    <div class="card tile"><div class="ico">🌙</div><div class="label">Après 23 h</div><div class="v">${fmt(w.late_night)}</div>
+      <div class="hint ${w.late_night > 1800 ? 'warn' : 'ok'}">${w.late_night > 1800 ? 'Ton sommeil te remerciera 😴' : 'Nuits préservées'}</div></div>
+  </section>
+  <section class="card" style="margin-bottom:14px">${timeline}</section>
+  <section class="card"><h2>Applications</h2>${appList(d.apps, d.total)}</section>`;
+}
+
+let weeksAgo = 1;
+async function showWrapped() {
+  const d = await getJSON('/api/wrapped?weeks_ago=' + weeksAgo);
+  setColors(d.top_apps);
+  const w = d.wellbeing, top = d.top_apps[0];
+  const title = weeksAgo === 0 ? 'Cette semaine (en cours)' : weeksAgo === 1 ? 'La semaine dernière' : `Il y a ${weeksAgo} semaines`;
+  $('#period').textContent = `${day(d.from, { day: 'numeric', month: 'short' })} → ${day(d.to, { day: 'numeric', month: 'short' })}`;
+  const peak = d.peak_hour == null ? '–' : `${d.peak_hour}h – ${d.peak_hour + 1}h`;
+  $('#view').innerHTML = `
+  <div class="w-nav"><button id="prev">‹ Semaine précédente</button><b>${title}</b>
+    <button id="next" ${weeksAgo === 0 ? 'disabled' : ''}>Semaine suivante ›</button></div>
+  <section class="w-hero">
+    <div class="week">Ton Wrapped · ${day(d.from, { day: 'numeric', month: 'long' })} – ${day(d.to, { day: 'numeric', month: 'long' })}</div>
+    <div class="emoji">${d.persona.emoji}</div><h1>${esc(d.persona.title)}</h1><p>${esc(d.persona.text)}</p>
+  </section>
+  <section class="row three">
+    <div class="card stat"><div class="label">Temps total</div><div class="v">${fmt(d.total)}</div>
+      ${delta(d.total, d.previous_total, 'vs la semaine d’avant')}
+      <div class="sub">${d.active_days} jour${d.active_days > 1 ? 's' : ''} actif${d.active_days > 1 ? 's' : ''} · ${fmt(d.total / Math.max(1, d.active_days))} / jour actif</div></div>
+    <div class="card stat"><div class="label">App n°1</div>
+      ${top ? `<div class="top1">${avatar(top)}<div><div class="v" style="font-size:26px">${esc(top.name)}</div>
+        <div class="d">${fmt(top.seconds)} · ${Math.round(100 * top.seconds / d.total)} % de ta semaine</div></div></div>` : '<div class="v">–</div>'}</div>
+    <div class="card stat"><div class="label">Jour le plus chargé</div>
+      <div class="v">${d.busiest_day ? day(d.busiest_day.label, { weekday: 'long' }) : '–'}</div>
+      <div class="d">${d.busiest_day ? fmt(d.busiest_day.seconds) : ''}</div></div>
+  </section>
+  <section class="row" style="grid-template-columns: 1.2fr 1fr">
+    <div class="card"><h2>Ton top 5</h2>${d.top_apps.length ? `<div class="rank">${d.top_apps.map(a =>
+      `<div>${avatar(a)}<b>${esc(a.name)}</b><span class="d">${fmt(a.seconds)}</span></div>`).join('')}</div>` : '<div class="empty">Rien cette semaine.</div>'}
+      <div class="sub">${d.app_count} application${d.app_count > 1 ? 's' : ''} utilisée${d.app_count > 1 ? 's' : ''} au total</div></div>
+    <div class="card"><h2>Ta semaine jour par jour</h2>${bars(d.days.map(b => ({ label: day(b.label, { weekday: 'short' }),
+      tip: `${day(b.label, { weekday: 'long' })} · ${fmt(b.seconds)}`, value: b.seconds / 3600 })), d.goal / 3600)}</div>
+  </section>
+  <section class="row four">
+    <div class="card tile"><div class="ico">⚡</div><div class="label">Heure de pointe</div><div class="v">${peak}</div></div>
+    <div class="card tile"><div class="ico">⏱️</div><div class="label">Record sans pause</div><div class="v">${fmt(w.longest_stretch)}</div></div>
+    <div class="card tile"><div class="ico">🌅</div><div class="label">Plus tôt → plus tard</div><div class="v">${clock(w.first_start)} → ${clock(w.last_end)}</div></div>
+    <div class="card tile"><div class="ico">🎯</div><div class="label">Jours au-dessus de l'objectif</div><div class="v">${d.days_over_goal} / 7</div>
+      <div class="hint">${w.breaks} pauses · ${fmt(w.late_night)} après 23 h</div></div>
+  </section>`;
+  $('#prev').onclick = () => { weeksAgo++; showWrapped(); };
+  $('#next').onclick = () => { if (weeksAgo > 0) { weeksAgo--; showWrapped(); } };
+}
+
+function route() {
+  const r = (location.hash || '#today').slice(1);
+  const view = ['today', 'week', 'month', 'wrapped'].includes(r) ? r : 'today';
+  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.hash === '#' + view));
+  (view === 'wrapped' ? showWrapped() : showRange(view)).catch(() =>
+    $('#view').innerHTML = '<div class="card empty">Le traceur ne répond pas. Est-il lancé ?</div>');
+}
+window.addEventListener('hashchange', route);
+route();
+setInterval(() => { if (!document.hidden && location.hash !== '#wrapped') route(); }, 60000);
+
+// Tooltips
+const tip = $('#tip');
+document.addEventListener('mousemove', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t) { tip.style.opacity = 0; return; }
+  tip.textContent = t.dataset.tip;
+  tip.style.opacity = 1;
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = (e.clientY - 38) + 'px';
 });
-load(range);
-setInterval(() => { if (!document.hidden) load(range); }, 60000);
 </script>
 </body>
 </html>

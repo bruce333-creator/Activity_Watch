@@ -6,7 +6,6 @@ use crate::probe::SystemProbe;
 use crate::store::Store;
 use crate::timeutil::now_unix;
 use crate::{dlog, log, server};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Sender, channel};
 use std::time::{Duration, Instant};
@@ -14,15 +13,16 @@ use std::time::{Duration, Instant};
 use windows::Win32::Foundation::{
     CloseHandle, ERROR_ALREADY_EXISTS, FILETIME, GetLastError, HANDLE,
 };
+use windows::Win32::Graphics::Gdi::{
+    BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
+    DeleteObject, GetDIBits, GetObjectW, HBITMAP, HDC,
+};
 use windows::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, GetStdHandle, STD_OUTPUT_HANDLE,
 };
-use windows::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
-};
 use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
 use windows::Win32::System::Registry::{
-    HKEY_CURRENT_USER, REG_SZ, RegDeleteKeyValueW, RegSetKeyValueW,
+    HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_SZ, RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW,
 };
 use windows::Win32::System::StationsAndDesktops::{
     CloseDesktop, DESKTOP_CONTROL_FLAGS, DESKTOP_READOBJECTS, GetUserObjectInformationW,
@@ -37,10 +37,11 @@ use windows::Win32::System::Threading::{
     SetPriorityClass, SetProcessInformation,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
-use windows::Win32::UI::Shell::ShellExecuteW;
+use windows::Win32::UI::Shell::{SHDefExtractIconW, ShellExecuteW};
 use windows::Win32::UI::WindowsAndMessaging::{
-    DispatchMessageW, GetForegroundWindow, GetMessageW, GetWindowThreadProcessId, MSG,
-    PostQuitMessage, SW_SHOWNORMAL, TranslateMessage,
+    DestroyIcon, DispatchMessageW, GetForegroundWindow, GetIconInfo, GetMessageW,
+    GetWindowThreadProcessId, HICON, ICONINFO, MSG, PostQuitMessage, SW_SHOWNORMAL,
+    TranslateMessage,
 };
 use windows::core::{HSTRING, PCWSTR, PWSTR, w};
 
@@ -50,23 +51,13 @@ const RUN_VALUE: PCWSTR = w!("ActivityTracker");
 // ---------------------------------------------------------------- probe
 
 pub struct WinProbe {
-    fg_cache: Option<(u32, String)>,
-    prev_cpu: HashMap<u32, u64>,
-    prev_wall: Option<Instant>,
-    ncpu: f64,
+    /// (pid, name, path) of the last foreground process, to avoid reopening it every tick.
+    cache: Option<(u32, String, String)>,
 }
 
 impl WinProbe {
     pub fn new() -> Self {
-        let ncpu = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(1) as f64;
-        WinProbe {
-            fg_cache: None,
-            prev_cpu: HashMap::new(),
-            prev_wall: None,
-            ncpu,
-        }
+        WinProbe { cache: None }
     }
 }
 
@@ -81,7 +72,8 @@ fn process_cpu_100ns(h: HANDLE) -> Option<u64> {
     Some(filetime_100ns(k) + filetime_100ns(u))
 }
 
-fn process_name(pid: u32) -> Option<String> {
+/// Full exe path of a process.
+fn process_path(pid: u32) -> Option<String> {
     unsafe {
         let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
         let mut buf = [0u16; 1024];
@@ -90,13 +82,12 @@ fn process_name(pid: u32) -> Option<String> {
             QueryFullProcessImageNameW(h, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), &mut len);
         let _ = CloseHandle(h);
         r.ok()?;
-        let full = String::from_utf16_lossy(&buf[..len as usize]);
-        Some(full.rsplit('\\').next().unwrap_or(&full).to_lowercase())
+        Some(String::from_utf16_lossy(&buf[..len as usize]))
     }
 }
 
 impl SystemProbe for WinProbe {
-    fn foreground_process(&mut self) -> Option<String> {
+    fn foreground_process(&mut self) -> Option<(String, String)> {
         let mut pid = 0u32;
         unsafe {
             let hwnd = GetForegroundWindow();
@@ -108,15 +99,28 @@ impl SystemProbe for WinProbe {
         if pid == 0 {
             return None;
         }
-        if let Some((p, name)) = &self.fg_cache {
+        if let Some((p, name, path)) = &self.cache {
             if *p == pid {
-                return Some(name.clone());
+                return Some((name.clone(), path.clone()));
             }
         }
         // Elevated / protected processes may refuse; still count the time.
-        let name = process_name(pid).unwrap_or_else(|| "unknown".into());
-        self.fg_cache = Some((pid, name.clone()));
-        Some(name)
+        let path = process_path(pid).unwrap_or_default();
+        let name = path
+            .rsplit('\\')
+            .next()
+            .filter(|n| !n.is_empty())
+            .unwrap_or("unknown")
+            .to_lowercase();
+        // When an app hangs ("Ne répond pas", common with Maya), Windows shows a ghost
+        // window owned by dwm.exe: keep attributing that time to the hung app.
+        if name == "dwm.exe" {
+            if let Some((_, n, p)) = &self.cache {
+                return Some((n.clone(), p.clone()));
+            }
+        }
+        self.cache = Some((pid, name.clone(), path.clone()));
+        Some((name, path))
     }
 
     fn idle_seconds(&mut self) -> u64 {
@@ -155,64 +159,93 @@ impl SystemProbe for WinProbe {
         }
     }
 
-    fn process_cpu_percent(&mut self, names: &[String]) -> Vec<(String, f32)> {
-        if names.is_empty() {
-            return Vec::new();
-        }
-        let now = Instant::now();
-        let wall = self
-            .prev_wall
-            .map(|t| now.duration_since(t).as_secs_f64())
-            .unwrap_or(0.0);
-        self.prev_wall = Some(now);
-        let mut cpu_now = HashMap::new();
-        let mut out: Vec<(String, f32)> = Vec::new();
-        unsafe {
-            let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
-                return out;
-            };
-            let mut e = PROCESSENTRY32W {
-                dwSize: size_of::<PROCESSENTRY32W>() as u32,
-                ..Default::default()
-            };
-            let mut more = Process32FirstW(snap, &mut e).is_ok();
-            while more {
-                let len = e
-                    .szExeFile
-                    .iter()
-                    .position(|&c| c == 0)
-                    .unwrap_or(e.szExeFile.len());
-                let exe = String::from_utf16_lossy(&e.szExeFile[..len]).to_lowercase();
-                if names.contains(&exe) {
-                    let pid = e.th32ProcessID;
-                    if let Ok(h) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
-                        if let Some(cpu) = process_cpu_100ns(h) {
-                            cpu_now.insert(pid, cpu);
-                            let pct = match self.prev_cpu.get(&pid) {
-                                Some(prev) if wall > 0.0 => {
-                                    (cpu.saturating_sub(*prev) as f64 / 1e7 / wall / self.ncpu
-                                        * 100.0) as f32
-                                }
-                                _ => 0.0, // first sample of this process: no baseline yet
-                            };
-                            match out.iter_mut().find(|(n, _)| *n == exe) {
-                                Some(entry) => entry.1 += pct,
-                                None => out.push((exe, pct)),
-                            }
-                        }
-                        let _ = CloseHandle(h);
-                    }
-                }
-                more = Process32NextW(snap, &mut e).is_ok();
-            }
-            let _ = CloseHandle(snap);
-        }
-        self.prev_cpu = cpu_now;
-        out
-    }
-
     fn working_set_bytes(&mut self) -> u64 {
         memory().0
+    }
+}
+
+// ---------------------------------------------------------------- app icons
+
+/// Reads a GDI bitmap as top-down 32-bit BGRA.
+unsafe fn bitmap_bgra(dc: HDC, bmp: HBITMAP, w: i32, h: i32) -> Option<Vec<u8>> {
+    let mut bi = BITMAPINFO {
+        bmiHeader: BITMAPINFOHEADER {
+            biSize: size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: w,
+            biHeight: -h,
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: BI_RGB.0,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let mut buf = vec![0u8; (w * h * 4) as usize];
+    let lines = unsafe {
+        GetDIBits(
+            dc,
+            bmp,
+            0,
+            h as u32,
+            Some(buf.as_mut_ptr().cast()),
+            &mut bi,
+            DIB_RGB_COLORS,
+        )
+    };
+    (lines == h).then_some(buf)
+}
+
+/// The icon of an exe as a 48x48 PNG (used by the dashboard).
+pub fn exe_icon_png(path: &str) -> Option<Vec<u8>> {
+    unsafe {
+        let wpath = HSTRING::from(path);
+        let mut hicon = HICON::default();
+        SHDefExtractIconW(PCWSTR(wpath.as_ptr()), 0, 0, Some(&mut hicon), None, 48)
+            .ok()
+            .ok()?;
+        if hicon.is_invalid() {
+            return None;
+        }
+        let mut ii = ICONINFO::default();
+        let info = GetIconInfo(hicon, &mut ii);
+        let _ = DestroyIcon(hicon);
+        info.ok()?;
+
+        let mut png = None;
+        let mut bm = BITMAP::default();
+        if !ii.hbmColor.is_invalid()
+            && GetObjectW(
+                ii.hbmColor.into(),
+                size_of::<BITMAP>() as i32,
+                Some((&mut bm as *mut BITMAP).cast()),
+            ) > 0
+            && (1..=256).contains(&bm.bmWidth)
+            && (1..=256).contains(&bm.bmHeight)
+        {
+            let (w, h) = (bm.bmWidth, bm.bmHeight);
+            let dc = CreateCompatibleDC(None);
+            let color = bitmap_bgra(dc, ii.hbmColor, w, h);
+            let mask = bitmap_bgra(dc, ii.hbmMask, w, h);
+            let _ = DeleteDC(dc);
+            if let Some(mut px) = color {
+                // Old icons have no alpha channel: use the mask (white = transparent).
+                let has_alpha = px.chunks(4).any(|p| p[3] != 0);
+                for (i, p) in px.chunks_mut(4).enumerate() {
+                    p.swap(0, 2); // BGRA -> RGBA
+                    if !has_alpha {
+                        p[3] = if mask.as_ref().is_some_and(|m| m[i * 4] != 0) {
+                            0
+                        } else {
+                            255
+                        };
+                    }
+                }
+                png = Some(crate::png::encode_rgba(w as u32, h as u32, &px));
+            }
+        }
+        let _ = DeleteObject(ii.hbmColor.into());
+        let _ = DeleteObject(ii.hbmMask.into());
+        png
     }
 }
 
@@ -267,6 +300,21 @@ fn single_instance() -> bool {
     }
 }
 
+fn autostart_enabled() -> bool {
+    unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            RUN_KEY,
+            RUN_VALUE,
+            RRF_RT_REG_SZ,
+            None,
+            None,
+            None,
+        )
+        .is_ok()
+    }
+}
+
 fn set_autostart(exe: &Path, enable: bool) -> Result<(), String> {
     let err = unsafe {
         if enable {
@@ -293,8 +341,8 @@ fn set_autostart(exe: &Path, enable: bool) -> Result<(), String> {
     }
 }
 
-fn open_browser(port: u16) {
-    let url = HSTRING::from(format!("http://127.0.0.1:{port}/"));
+fn open_browser(port: u16, page: &str) {
+    let url = HSTRING::from(format!("http://127.0.0.1:{port}/{page}"));
     unsafe {
         ShellExecuteW(
             None,
@@ -322,36 +370,25 @@ fn attach_console() {
 
 // ---------------------------------------------------------------- tray
 
+/// Icons embedded by build.rs (assets/app.rc): 1 = normal, 2 = paused.
 fn tray_icon(paused: bool) -> Option<tray_icon::Icon> {
-    const S: usize = 32;
-    let (r, g, b) = if paused {
-        (0x8d, 0x8c, 0x85)
-    } else {
-        (0x39, 0x87, 0xe5)
-    };
-    let mut rgba = vec![0u8; S * S * 4];
-    for y in 0..S {
-        for x in 0..S {
-            let (dx, dy) = (x as f32 - 15.5, y as f32 - 15.5);
-            let d = (dx * dx + dy * dy).sqrt();
-            let alpha = (15.0 - d).clamp(0.0, 1.0); // anti-aliased disc
-            let i = (y * S + x) * 4;
-            rgba[i..i + 4].copy_from_slice(&[r, g, b, (alpha * 255.0) as u8]);
-        }
-    }
-    tray_icon::Icon::from_rgba(rgba, S as u32, S as u32).ok()
+    tray_icon::Icon::from_resource(if paused { 2 } else { 1 }, Some((32, 32))).ok()
 }
 
 /// Runs the tray icon and a blocking Win32 message loop on the calling thread until "Quit".
-fn run_tray(tx: &Sender<Cmd>, port: u16) -> Result<(), String> {
+fn run_tray(tx: &Sender<Cmd>, port: u16, exe: &Path) -> Result<(), String> {
     use tray_icon::TrayIconBuilder;
-    use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+    use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 
     let open = MenuItem::new("Open stats", true, None);
+    let wrapped = MenuItem::new("Weekly Wrapped", true, None);
     let pause = MenuItem::new("Pause tracking", true, None);
+    let startup = CheckMenuItem::new("Run at Windows startup", true, autostart_enabled(), None);
     let quit = MenuItem::new("Quit", true, None);
+    let sep = PredefinedMenuItem::separator();
+    let sep2 = PredefinedMenuItem::separator();
     let menu = Menu::new();
-    menu.append_items(&[&open, &pause, &PredefinedMenuItem::separator(), &quit])
+    menu.append_items(&[&open, &wrapped, &sep, &pause, &startup, &sep2, &quit])
         .map_err(|e| e.to_string())?;
     let mut builder = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
@@ -370,7 +407,9 @@ fn run_tray(tx: &Sender<Cmd>, port: u16) -> Result<(), String> {
             DispatchMessageW(&msg);
             while let Ok(ev) = MenuEvent::receiver().try_recv() {
                 if ev.id == *open.id() {
-                    open_browser(port);
+                    open_browser(port, "");
+                } else if ev.id == *wrapped.id() {
+                    open_browser(port, "#wrapped");
                 } else if ev.id == *pause.id() {
                     paused = !paused;
                     let _ = tx.send(Cmd::Pause(paused));
@@ -385,6 +424,15 @@ fn run_tray(tx: &Sender<Cmd>, port: u16) -> Result<(), String> {
                     } else {
                         "Activity Tracker"
                     }));
+                } else if ev.id == *startup.id() {
+                    let enable = !autostart_enabled();
+                    match set_autostart(exe, enable) {
+                        Ok(()) => {
+                            dlog!("autostart {}", if enable { "enabled" } else { "disabled" })
+                        }
+                        Err(e) => dlog!("error: autostart change failed: {e}"),
+                    }
+                    startup.set_checked(autostart_enabled());
                 } else if ev.id == *quit.id() {
                     PostQuitMessage(0);
                 }
@@ -461,11 +509,11 @@ pub fn main() -> i32 {
     set_low_priority();
 
     if has("--selftest") {
-        return selftest(cfg);
+        return selftest(cfg, &exe);
     }
     if !single_instance() {
         dlog!("another instance is running: opening the dashboard and exiting");
-        open_browser(cfg.web_port);
+        open_browser(cfg.web_port, "");
         return 0;
     }
 
@@ -487,13 +535,13 @@ pub fn main() -> i32 {
     let port = cfg.web_port;
     {
         let (db, cfg) = (db.clone(), cfg.clone());
-        std::thread::spawn(move || server::serve(&db, cfg));
+        std::thread::spawn(move || server::serve(&db, cfg, Some(exe_icon_png)));
     }
     let (tx, rx) = channel();
     let worker =
         std::thread::spawn(move || collector::run(Collector::new(WinProbe::new(), store, cfg), rx));
 
-    if let Err(e) = run_tray(&tx, port) {
+    if let Err(e) = run_tray(&tx, port, &exe) {
         dlog!("error: tray icon unavailable ({e}); running without it");
         let _ = worker.join(); // keeps tracking until the process is killed
         return 0;
@@ -505,7 +553,7 @@ pub fn main() -> i32 {
 }
 
 /// Runs the real collector for 15 s against an in-memory database and reports its own cost.
-fn selftest(cfg: Config) -> i32 {
+fn selftest(cfg: Config, exe: &Path) -> i32 {
     println!(
         "activity-tracker {} selftest: sampling for 15 s every {} s...",
         env!("CARGO_PKG_VERSION"),
@@ -534,43 +582,50 @@ fn selftest(cfg: Config) -> i32 {
         errors += 1;
         println!("shutdown error: {e}");
     }
-    let json = server::summary_json(&c.store, &cfg, "today", now_unix());
-    if serde_json::from_str::<serde_json::Value>(&json).is_err() {
-        errors += 1;
-        println!("dashboard JSON invalid");
+    for json in [
+        server::summary_json(&c.store, &cfg, "today", now_unix()),
+        server::wrapped_json(&c.store, &cfg, 1, now_unix()),
+    ] {
+        if serde_json::from_str::<serde_json::Value>(&json).is_err() {
+            errors += 1;
+            println!("dashboard JSON invalid");
+        }
     }
-    let page_ok = server::page().contains("Chart.js");
+    let own_icon = exe_icon_png(&exe.to_string_lossy());
+    let tray_ok = tray_icon(false).is_some() && tray_icon(true).is_some();
 
     let fg = c.probe.foreground_process();
     let idle = c.probe.idle_seconds();
     let locked = c.probe.is_session_locked();
-    let render = c.probe.process_cpu_percent(&cfg.render_processes);
     let (ws, peak) = memory();
     let cpu = own_cpu_secs() - cpu0;
     let wall = t0.elapsed().as_secs_f64();
 
-    println!("foreground process : {}", fg.as_deref().unwrap_or("(none)"));
+    println!(
+        "foreground process : {}",
+        fg.as_ref()
+            .map_or("(none)".into(), |(n, p)| format!("{n}  ({p})"))
+    );
     println!("idle seconds       : {idle}");
     println!("session locked     : {locked}");
-    println!(
-        "render processes   : {}",
-        if render.is_empty() {
-            "(none running)".to_string()
-        } else {
-            format!("{render:?}")
-        }
-    );
+    println!("autostart enabled  : {}", autostart_enabled());
     println!("samples / errors   : {ticks} / {errors}");
-    println!(
-        "dashboard page     : {}",
-        if page_ok { "ok" } else { "MISSING Chart.js" }
-    );
     println!(
         "sessions recorded  : {}",
         c.store
             .sessions_between(-1, i64::MAX)
             .map(|v| v.len())
             .unwrap_or(0)
+    );
+    println!(
+        "exe icon -> PNG    : {}",
+        own_icon
+            .as_ref()
+            .map_or("FAILED".into(), |p| format!("{} bytes", p.len()))
+    );
+    println!(
+        "tray icons         : {}",
+        if tray_ok { "ok" } else { "MISSING" }
     );
     println!(
         "working set        : {:.1} MB (peak {:.1} MB)",
@@ -584,7 +639,7 @@ fn selftest(cfg: Config) -> i32 {
         cpu / wall * 100.0
     );
     dlog!("selftest: ws {ws} peak {peak} cpu {cpu:.3}s ticks {ticks} errors {errors}");
-    if errors == 0 && page_ok {
+    if errors == 0 && own_icon.is_some() && tray_ok {
         println!("SELFTEST OK");
         0
     } else {

@@ -1,9 +1,9 @@
-//! Session building: idle / active / render state machine. Platform independent.
+//! Session building: idle / active state machine. Platform independent.
 
 use crate::config::Config;
 use crate::dlog;
 use crate::probe::SystemProbe;
-use crate::store::{Kind, Store};
+use crate::store::Store;
 use crate::timeutil::now_unix;
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::Duration;
@@ -16,15 +16,9 @@ pub enum Cmd {
     Quit,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-struct State {
-    process: String,
-    kind: Kind,
-}
-
 struct Open {
     id: i64,
-    state: State,
+    process: String,
     start: i64,
 }
 
@@ -51,78 +45,55 @@ impl<P: SystemProbe> Collector<P> {
         }
     }
 
-    /// What should be recorded right now, plus seconds since last input when the user is idle.
-    fn observe(&mut self) -> (Option<State>, Option<i64>) {
-        let idle_secs = self.probe.idle_seconds();
-        let locked = self.probe.is_session_locked();
-        if !locked && idle_secs < self.cfg.idle_threshold_secs {
-            let process = self
-                .probe
-                .foreground_process()
-                .unwrap_or_else(|| "unknown".into());
-            if !self.cfg.is_ignored(&process) {
-                return (
-                    Some(State {
-                        process,
-                        kind: Kind::Active,
-                    }),
-                    None,
-                );
-            }
-            // In an ignored app: fall through, a render may still be running.
-        }
-        let user_idle =
-            (locked || idle_secs >= self.cfg.idle_threshold_secs).then_some(idle_secs as i64);
-        let busiest = self
-            .probe
-            .process_cpu_percent(&self.cfg.render_processes)
-            .into_iter()
-            .filter(|(_, cpu)| *cpu >= self.cfg.render_cpu_threshold)
-            .max_by(|a, b| a.1.total_cmp(&b.1));
-        (
-            busiest.map(|(process, _)| State {
-                process,
-                kind: Kind::Render,
-            }),
-            user_idle,
-        )
+    fn max_gap(&self) -> i64 {
+        (self.cfg.poll_interval_secs as i64 * 5).max(30)
     }
 
-    /// One sample. Writes to the database only when the state changes or every FLUSH_SECS.
+    /// One sample. Writes to the database only when the app/idle state changes or every FLUSH_SECS.
     pub fn tick(&mut self, now: i64) -> rusqlite::Result<()> {
         // A long gap between samples means the PC slept/hibernated: end the session at the last sample.
-        let max_gap = (self.cfg.poll_interval_secs as i64 * 5).max(30);
         if let Some(last) = self.last_tick {
-            if now - last > max_gap {
+            if now - last > self.max_gap() {
                 dlog!("gap of {}s (sleep/hibernate?), closing session", now - last);
                 self.close(last)?;
             }
         }
         self.last_tick = Some(now);
 
-        let (desired, idle_secs) = if self.paused {
+        // (desired app, seconds since last input if the user is idle)
+        let (desired, idle) = if self.paused {
             (None, None)
         } else {
-            self.observe()
-        };
-        if self.open.as_ref().map(|o| &o.state) != desired.as_ref() {
-            // When the user just went idle, active time really ended at the last input.
-            let mut boundary = now;
-            if let (Some(idle), Some(o)) = (idle_secs, &self.open) {
-                if o.state.kind == Kind::Active {
-                    boundary = (now - idle).max(o.start);
-                }
+            let idle_secs = self.probe.idle_seconds();
+            if self.probe.is_session_locked() || idle_secs >= self.cfg.idle_threshold_secs {
+                (None, Some(idle_secs as i64))
+            } else {
+                let (process, path) = self
+                    .probe
+                    .foreground_process()
+                    .unwrap_or_else(|| ("unknown".into(), String::new()));
+                (
+                    (!self.cfg.is_ignored(&process)).then_some((process, path)),
+                    None,
+                )
             }
+        };
+
+        if self.open.as_ref().map(|o| &o.process) != desired.as_ref().map(|d| &d.0) {
+            // When the user just went idle, active time really ended at the last input.
+            let boundary = match (idle, &self.open) {
+                (Some(idle), Some(o)) => (now - idle).max(o.start),
+                _ => now,
+            };
             self.close(boundary)?;
-            if let Some(state) = desired {
-                let id = self
-                    .store
-                    .insert(boundary, boundary, &state.process, state.kind)?;
-                dlog!("start {} {}", state.kind.as_str(), state.process);
+            if let Some((process, path)) = desired {
+                let id = self.store.insert(now, now, &process)?;
+                self.store.set_app_path(&process, &path)?;
+                dlog!("start {process}");
                 self.open = Some(Open {
                     id,
-                    state,
-                    start: boundary,
+                    process,
+                    start: now,
                 });
             }
         }
@@ -150,12 +121,7 @@ impl<P: SystemProbe> Collector<P> {
         if let Some(o) = self.open.take() {
             let end = end.max(o.start);
             self.store.set_end(o.id, end)?;
-            dlog!(
-                "end   {} {} ({}s)",
-                o.state.kind.as_str(),
-                o.state.process,
-                end - o.start
-            );
+            dlog!("end   {} ({}s)", o.process, end - o.start);
         }
         Ok(())
     }
@@ -163,7 +129,7 @@ impl<P: SystemProbe> Collector<P> {
     /// Ends the open session (call on exit).
     pub fn shutdown(&mut self, now: i64) -> rusqlite::Result<()> {
         let end = match self.last_tick {
-            Some(last) if now - last > (self.cfg.poll_interval_secs as i64 * 5).max(30) => last,
+            Some(last) if now - last > self.max_gap() => last,
             _ => now,
         };
         self.close(end)
@@ -171,7 +137,7 @@ impl<P: SystemProbe> Collector<P> {
 
     #[cfg(test)]
     pub fn current_process(&self) -> Option<&str> {
-        self.open.as_ref().map(|o| o.state.process.as_str())
+        self.open.as_ref().map(|o| o.process.as_str())
     }
 }
 
@@ -201,7 +167,6 @@ pub fn run<P: SystemProbe>(mut c: Collector<P>, rx: Receiver<Cmd>) {
 mod tests {
     use super::*;
     use crate::probe::FakeProbe;
-    use crate::store::Session;
 
     fn collector() -> Collector<FakeProbe> {
         Collector::new(
@@ -211,19 +176,12 @@ mod tests {
         )
     }
 
-    fn rows(c: &Collector<FakeProbe>) -> Vec<(i64, i64, String, Kind)> {
+    fn rows(c: &Collector<FakeProbe>) -> Vec<(i64, i64, String)> {
         c.store
             .sessions_between(-1, i64::MAX)
             .unwrap()
             .into_iter()
-            .map(
-                |Session {
-                     start,
-                     end,
-                     process,
-                     kind,
-                 }| (start, end, process, kind),
-            )
+            .map(|s| (s.start, s.end, s.process))
             .collect()
     }
 
@@ -234,8 +192,8 @@ mod tests {
         }
     }
 
-    fn row(s: i64, e: i64, p: &str, k: Kind) -> (i64, i64, String, Kind) {
-        (s, e, p.to_string(), k)
+    fn row(s: i64, e: i64, p: &str) -> (i64, i64, String) {
+        (s, e, p.to_string())
     }
 
     #[test]
@@ -251,10 +209,14 @@ mod tests {
         assert_eq!(
             rows(&c),
             vec![
-                row(1000, 1010, "maya.exe", Kind::Active),
-                row(1010, 1020, "chrome.exe", Kind::Active),
-                row(1020, 1030, "maya.exe", Kind::Active),
+                row(1000, 1010, "maya.exe"),
+                row(1010, 1020, "chrome.exe"),
+                row(1020, 1030, "maya.exe")
             ]
+        );
+        assert_eq!(
+            c.store.app_path("maya.exe").as_deref(),
+            Some("C:\\Apps\\maya.exe")
         );
     }
 
@@ -271,7 +233,7 @@ mod tests {
         c.probe.idle = 181;
         c.tick(1281).unwrap();
         assert_eq!(c.current_process(), None);
-        // Coffee break: idle keeps growing, nothing is recorded (no render running).
+        // Coffee break: idle keeps growing, nothing is recorded.
         for t in (1283..1500).step_by(2) {
             c.probe.idle = (t - 1100) as u64;
             c.tick(t).unwrap();
@@ -284,8 +246,8 @@ mod tests {
         assert_eq!(
             rows(&c),
             vec![
-                row(1000, 1100, "blender.exe", Kind::Active),
-                row(1500, 1510, "blender.exe", Kind::Active)
+                row(1000, 1100, "blender.exe"),
+                row(1500, 1510, "blender.exe")
             ]
         );
     }
@@ -298,42 +260,7 @@ mod tests {
         c.probe.locked = true;
         run_ticks(&mut c, 10, 20);
         c.shutdown(20).unwrap();
-        assert_eq!(rows(&c), vec![row(0, 10, "maya.exe", Kind::Active)]);
-    }
-
-    #[test]
-    fn render_counted_while_idle() {
-        let mut c = collector();
-        c.probe.foreground = Some("maya.exe".into());
-        c.probe.cpu = vec![("prman.exe".into(), 95.0), ("notepad.exe".into(), 99.0)];
-        run_ticks(&mut c, 0, 100); // render while the user is active counts as active time
-        // Last input at t=100, then idle; render keeps the CPU busy.
-        for t in (100..400).step_by(2) {
-            c.probe.idle = (t - 100) as u64;
-            c.tick(t).unwrap();
-        }
-        // Render drops below threshold: nothing is recorded.
-        c.probe.cpu = vec![("prman.exe".into(), 10.0)];
-        run_ticks(&mut c, 400, 420);
-        c.shutdown(420).unwrap();
-        // Active ends at the last input (100); render starts there and runs until 400.
-        assert_eq!(
-            rows(&c),
-            vec![
-                row(0, 100, "maya.exe", Kind::Active),
-                row(100, 400, "prman.exe", Kind::Render)
-            ]
-        );
-    }
-
-    #[test]
-    fn render_picks_busiest_listed_process() {
-        let mut c = collector();
-        c.probe.idle = 1000;
-        c.probe.cpu = vec![("mayabatch.exe".into(), 55.0), ("prman.exe".into(), 70.0)];
-        run_ticks(&mut c, 0, 10);
-        c.shutdown(10).unwrap();
-        assert_eq!(rows(&c), vec![row(0, 10, "prman.exe", Kind::Render)]);
+        assert_eq!(rows(&c), vec![row(0, 10, "maya.exe")]);
     }
 
     #[test]
@@ -343,18 +270,12 @@ mod tests {
         c.tick(1000).unwrap(); // first tick flushes immediately (last_flush = 0)
         run_ticks(&mut c, 1002, 1058);
         // Not yet flushed: row still ends at its start.
-        assert_eq!(
-            rows(&c),
-            vec![row(1000, 1000, "photoshop.exe", Kind::Active)]
-        );
+        assert_eq!(rows(&c), vec![row(1000, 1000, "photoshop.exe")]);
         run_ticks(&mut c, 1058, 1062);
         assert_eq!(rows(&c)[0].1, 1060, "flushed after 60 s");
         run_ticks(&mut c, 1062, 1080);
         c.shutdown(1081).unwrap();
-        assert_eq!(
-            rows(&c),
-            vec![row(1000, 1081, "photoshop.exe", Kind::Active)]
-        );
+        assert_eq!(rows(&c), vec![row(1000, 1081, "photoshop.exe")]);
     }
 
     #[test]
@@ -366,10 +287,7 @@ mod tests {
         c.shutdown(5004).unwrap();
         assert_eq!(
             rows(&c),
-            vec![
-                row(0, 8, "maya.exe", Kind::Active),
-                row(5000, 5004, "maya.exe", Kind::Active)
-            ]
+            vec![row(0, 8, "maya.exe"), row(5000, 5004, "maya.exe")]
         );
     }
 
@@ -387,10 +305,7 @@ mod tests {
         c.shutdown(40).unwrap();
         assert_eq!(
             rows(&c),
-            vec![
-                row(10, 20, "maya.exe", Kind::Active),
-                row(30, 40, "maya.exe", Kind::Active)
-            ]
+            vec![row(10, 20, "maya.exe"), row(30, 40, "maya.exe")]
         );
     }
 
