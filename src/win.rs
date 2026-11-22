@@ -2,17 +2,24 @@
 
 use crate::collector::{self, Cmd, Collector};
 use crate::config::Config;
-use crate::probe::SystemProbe;
+use crate::notice::{Lang, Notice, menu};
+use crate::probe::{Foreground, SystemProbe};
 use crate::store::Store;
 use crate::timeutil::now_unix;
 use crate::{dlog, log, server};
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
 use std::sync::mpsc::{Sender, channel};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use windows::Win32::Foundation::{
-    CloseHandle, ERROR_ALREADY_EXISTS, FILETIME, GetLastError, HANDLE,
+    CloseHandle, ERROR_ALREADY_EXISTS, FILETIME, GetLastError, HANDLE, HINSTANCE, HWND, LPARAM,
+    LRESULT, POINT, WPARAM,
 };
+use windows::Win32::Globalization::GetUserDefaultUILanguage;
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
     DeleteObject, GetDIBits, GetObjectW, HBITMAP, HDC,
@@ -20,6 +27,7 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, GetStdHandle, STD_OUTPUT_HANDLE,
 };
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
 use windows::Win32::System::Registry::{
     HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_SZ, RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW,
@@ -36,12 +44,24 @@ use windows::Win32::System::Threading::{
     PROCESS_QUERY_LIMITED_INFORMATION, ProcessPowerThrottling, QueryFullProcessImageNameW,
     SetPriorityClass, SetProcessInformation,
 };
+use windows::Win32::UI::HiDpi::{
+    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
-use windows::Win32::UI::Shell::{SHDefExtractIconW, ShellExecuteW};
+use windows::Win32::UI::Shell::{
+    NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIIF_LARGE_ICON, NIIF_USER, NIM_ADD, NIM_DELETE,
+    NIM_MODIFY, NIN_BALLOONUSERCLICK, NOTIFYICONDATAW, SHDefExtractIconW, Shell_NotifyIconW,
+    ShellExecuteW,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
-    DestroyIcon, DispatchMessageW, GetForegroundWindow, GetIconInfo, GetMessageW,
-    GetWindowThreadProcessId, HICON, ICONINFO, MSG, PostQuitMessage, SW_SHOWNORMAL,
-    TranslateMessage,
+    AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu,
+    DispatchMessageW, GetCursorPos, GetForegroundWindow, GetIconInfo, GetMessageW,
+    GetSystemMetrics, GetWindowTextW, GetWindowThreadProcessId, HICON, ICONINFO, IMAGE_ICON,
+    LR_DEFAULTCOLOR, LoadImageW, MF_CHECKED, MF_SEPARATOR, MF_STRING, MSG, PostMessageW,
+    PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SM_CXICON, SM_CXSMICON, SW_SHOWNORMAL,
+    SetForegroundWindow, SetMenuDefaultItem, TPM_NONOTIFY, TPM_RETURNCMD, TPM_RIGHTBUTTON,
+    TrackPopupMenu, TranslateMessage, WINDOW_EX_STYLE, WM_APP, WM_CONTEXTMENU, WM_ENDSESSION,
+    WM_LBUTTONUP, WM_NULL, WM_QUERYENDSESSION, WM_RBUTTONUP, WNDCLASSW, WS_OVERLAPPED,
 };
 use windows::core::{HSTRING, PCWSTR, PWSTR, w};
 
@@ -51,8 +71,8 @@ const RUN_VALUE: PCWSTR = w!("ActivityTracker");
 // ---------------------------------------------------------------- probe
 
 pub struct WinProbe {
-    /// (pid, name, path) of the last foreground process, to avoid reopening it every tick.
-    cache: Option<(u32, String, String)>,
+    /// pid + last foreground app, to avoid reopening the process every tick.
+    cache: Option<(u32, Foreground)>,
 }
 
 impl WinProbe {
@@ -87,21 +107,26 @@ fn process_path(pid: u32) -> Option<String> {
 }
 
 impl SystemProbe for WinProbe {
-    fn foreground_process(&mut self) -> Option<(String, String)> {
+    fn foreground_process(&mut self) -> Option<Foreground> {
         let mut pid = 0u32;
+        let mut title = [0u16; 512];
+        let title_len;
         unsafe {
             let hwnd = GetForegroundWindow();
             if hwnd.is_invalid() {
                 return None;
             }
             GetWindowThreadProcessId(hwnd, Some(&mut pid));
+            title_len = GetWindowTextW(hwnd, &mut title).max(0) as usize;
         }
         if pid == 0 {
             return None;
         }
-        if let Some((p, name, path)) = &self.cache {
+        let title = String::from_utf16_lossy(&title[..title_len]);
+        if let Some((p, fg)) = &mut self.cache {
             if *p == pid {
-                return Some((name.clone(), path.clone()));
+                fg.title = title;
+                return Some(fg.clone());
             }
         }
         // Elevated / protected processes may refuse; still count the time.
@@ -112,15 +137,16 @@ impl SystemProbe for WinProbe {
             .filter(|n| !n.is_empty())
             .unwrap_or("unknown")
             .to_lowercase();
-        // When an app hangs ("Ne répond pas", common with Maya), Windows shows a ghost
+        // When an app hangs ("Not responding", common with Maya), Windows shows a ghost
         // window owned by dwm.exe: keep attributing that time to the hung app.
         if name == "dwm.exe" {
-            if let Some((_, n, p)) = &self.cache {
-                return Some((n.clone(), p.clone()));
+            if let Some((_, fg)) = &self.cache {
+                return Some(fg.clone());
             }
         }
-        self.cache = Some((pid, name.clone(), path.clone()));
-        Some((name, path))
+        let fg = Foreground { name, path, title };
+        self.cache = Some((pid, fg.clone()));
+        Some(fg)
     }
 
     fn idle_seconds(&mut self) -> u64 {
@@ -341,8 +367,29 @@ fn set_autostart(exe: &Path, enable: bool) -> Result<(), String> {
     }
 }
 
-fn open_browser(port: u16, page: &str) {
-    let url = HSTRING::from(format!("http://127.0.0.1:{port}/{page}"));
+/// Edge's location (preinstalled on Windows 10/11).
+fn edge_path() -> Option<PathBuf> {
+    ["ProgramFiles(x86)", "ProgramFiles", "LOCALAPPDATA"]
+        .iter()
+        .filter_map(|v| std::env::var_os(v))
+        .map(|base| PathBuf::from(base).join("Microsoft\\Edge\\Application\\msedge.exe"))
+        .find(|p| p.exists())
+}
+
+/// Opens the dashboard as a standalone app window (Edge app mode: no tabs, no address bar).
+/// Falls back to the default browser.
+fn open_ui(port: u16, page: &str) {
+    let url = format!("http://127.0.0.1:{port}/{page}");
+    if let Some(edge) = edge_path() {
+        let spawned = std::process::Command::new(edge)
+            .arg(format!("--app={url}"))
+            .arg("--window-size=1240,900")
+            .spawn();
+        if spawned.is_ok() {
+            return;
+        }
+    }
+    let url = HSTRING::from(url);
     unsafe {
         ShellExecuteW(
             None,
@@ -353,6 +400,10 @@ fn open_browser(port: u16, page: &str) {
             SW_SHOWNORMAL,
         );
     }
+}
+
+fn system_is_french() -> bool {
+    unsafe { GetUserDefaultUILanguage() & 0x3FF == 0x0C } // LANG_FRENCH
 }
 
 /// The release exe is a GUI-subsystem app: reattach to the parent console so
@@ -370,76 +421,300 @@ fn attach_console() {
 
 // ---------------------------------------------------------------- tray
 
-/// Icons embedded by build.rs (assets/app.rc): 1 = normal, 2 = paused.
-fn tray_icon(paused: bool) -> Option<tray_icon::Icon> {
-    tray_icon::Icon::from_resource(if paused { 2 } else { 1 }, Some((32, 32))).ok()
+const WM_TRAY: u32 = WM_APP + 1;
+const WM_NOTICE: u32 = WM_APP + 2;
+const ID_OPEN: u32 = 1;
+const ID_WRAPPED: u32 = 2;
+const ID_PAUSE: u32 = 3;
+const ID_STARTUP: u32 = 4;
+const ID_QUIT: u32 = 5;
+
+/// State of the tray, used from its window procedure (main thread).
+struct Tray {
+    tx: Sender<Cmd>,
+    worker: Option<JoinHandle<()>>,
+    port: u16,
+    exe: PathBuf,
+    lang: Lang,
+    paused: bool,
+    wrapped_auto_open: bool,
+    /// Page opened when the last notification is clicked.
+    notice_page: &'static str,
 }
 
-/// Runs the tray icon and a blocking Win32 message loop on the calling thread until "Quit".
-fn run_tray(tx: &Sender<Cmd>, port: u16, exe: &Path) -> Result<(), String> {
-    use tray_icon::TrayIconBuilder;
-    use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+static TRAY: Mutex<Option<Tray>> = Mutex::new(None);
+/// Notifications posted by the collector thread, shown by the main thread.
+static NOTICES: Mutex<VecDeque<Notice>> = Mutex::new(VecDeque::new());
+static TRAY_HWND: AtomicIsize = AtomicIsize::new(0);
+static TASKBAR_CREATED: AtomicU32 = AtomicU32::new(0);
 
-    let open = MenuItem::new("Open stats", true, None);
-    let wrapped = MenuItem::new("Weekly Wrapped", true, None);
-    let pause = MenuItem::new("Pause tracking", true, None);
-    let startup = CheckMenuItem::new("Run at Windows startup", true, autostart_enabled(), None);
-    let quit = MenuItem::new("Quit", true, None);
-    let sep = PredefinedMenuItem::separator();
-    let sep2 = PredefinedMenuItem::separator();
-    let menu = Menu::new();
-    menu.append_items(&[&open, &wrapped, &sep, &pause, &startup, &sep2, &quit])
-        .map_err(|e| e.to_string())?;
-    let mut builder = TrayIconBuilder::new()
-        .with_menu(Box::new(menu))
-        .with_tooltip("Activity Tracker");
-    if let Some(icon) = tray_icon(false) {
-        builder = builder.with_icon(icon);
+/// Short access to the tray state. Never hold it across calls that pump messages (menus).
+fn tray<R>(f: impl FnOnce(&mut Tray) -> R) -> Option<R> {
+    TRAY.lock().ok()?.as_mut().map(f)
+}
+
+fn wcopy(dst: &mut [u16], s: &str) {
+    let n = dst.len() - 1;
+    for (d, c) in dst.iter_mut().zip(s.encode_utf16().take(n).chain([0])) {
+        *d = c;
     }
-    let tray = builder.build().map_err(|e| e.to_string())?;
+}
 
-    let mut paused = false;
-    let mut msg = MSG::default();
+/// Icon embedded by build.rs (assets/app.rc): 1 = normal, 2 = paused.
+fn load_icon(id: u16, small: bool) -> HICON {
     unsafe {
-        // GetMessageW blocks: zero CPU while nothing happens.
-        while GetMessageW(&mut msg, None, 0, 0).0 > 0 {
-            let _ = TranslateMessage(&msg);
-            DispatchMessageW(&msg);
-            while let Ok(ev) = MenuEvent::receiver().try_recv() {
-                if ev.id == *open.id() {
-                    open_browser(port, "");
-                } else if ev.id == *wrapped.id() {
-                    open_browser(port, "#wrapped");
-                } else if ev.id == *pause.id() {
-                    paused = !paused;
-                    let _ = tx.send(Cmd::Pause(paused));
-                    pause.set_text(if paused {
-                        "Resume tracking"
+        let size = GetSystemMetrics(if small { SM_CXSMICON } else { SM_CXICON });
+        let module = GetModuleHandleW(None).unwrap_or_default();
+        LoadImageW(
+            Some(HINSTANCE(module.0)),
+            PCWSTR(id as usize as *const u16),
+            IMAGE_ICON,
+            size,
+            size,
+            LR_DEFAULTCOLOR,
+        )
+        .map(|h| HICON(h.0))
+        .unwrap_or_default()
+    }
+}
+
+fn icon_data(hwnd: HWND) -> NOTIFYICONDATAW {
+    NOTIFYICONDATAW {
+        cbSize: size_of::<NOTIFYICONDATAW>() as u32,
+        hWnd: hwnd,
+        uID: 1,
+        ..Default::default()
+    }
+}
+
+fn set_tray_icon(hwnd: HWND, add: bool) {
+    let (paused, lang) = tray(|t| (t.paused, t.lang)).unwrap_or((false, Lang::En));
+    let mut nid = icon_data(hwnd);
+    nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+    nid.uCallbackMessage = WM_TRAY;
+    nid.hIcon = load_icon(if paused { 2 } else { 1 }, true);
+    wcopy(
+        &mut nid.szTip,
+        if paused {
+            menu(lang).paused_tip
+        } else {
+            "Activity Tracker"
+        },
+    );
+    unsafe {
+        let _ = Shell_NotifyIconW(if add { NIM_ADD } else { NIM_MODIFY }, &nid);
+    }
+}
+
+/// Native Windows notification (shown as a toast on Windows 10/11).
+fn show_notification(hwnd: HWND, title: &str, body: &str) {
+    let mut nid = icon_data(hwnd);
+    nid.uFlags = NIF_INFO;
+    wcopy(&mut nid.szInfoTitle, title);
+    wcopy(&mut nid.szInfo, body);
+    nid.dwInfoFlags = NIIF_USER | NIIF_LARGE_ICON;
+    nid.hBalloonIcon = load_icon(1, false);
+    unsafe {
+        let _ = Shell_NotifyIconW(NIM_MODIFY, &nid);
+    }
+}
+
+/// Called on the collector thread: queue the notice and wake the tray window.
+fn post_notice(n: Notice) {
+    if let Ok(mut q) = NOTICES.lock() {
+        q.push_back(n);
+    }
+    let hwnd = TRAY_HWND.load(Ordering::Relaxed);
+    if hwnd != 0 {
+        unsafe {
+            let _ = PostMessageW(Some(HWND(hwnd as *mut _)), WM_NOTICE, WPARAM(0), LPARAM(0));
+        }
+    }
+}
+
+/// Stops the collector and waits for its final write.
+fn stop_collector() {
+    if let Some(worker) = tray(|t| {
+        let _ = t.tx.send(Cmd::Quit);
+        t.worker.take()
+    })
+    .flatten()
+    {
+        let _ = worker.join();
+    }
+}
+
+fn show_menu(hwnd: HWND) {
+    let Some((lang, paused, port)) = tray(|t| (t.lang, t.paused, t.port)) else {
+        return;
+    };
+    let m = menu(lang);
+    unsafe {
+        let Ok(hmenu) = CreatePopupMenu() else { return };
+        let item = |id: u32, text: &str, flags| {
+            let text = HSTRING::from(text);
+            let _ = AppendMenuW(hmenu, MF_STRING | flags, id as usize, PCWSTR(text.as_ptr()));
+        };
+        item(ID_OPEN, m.open, MF_STRING);
+        item(ID_WRAPPED, m.wrapped, MF_STRING);
+        let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
+        item(ID_PAUSE, if paused { m.resume } else { m.pause }, MF_STRING);
+        item(
+            ID_STARTUP,
+            m.startup,
+            if autostart_enabled() {
+                MF_CHECKED
+            } else {
+                MF_STRING
+            },
+        );
+        let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
+        item(ID_QUIT, m.quit, MF_STRING);
+        let _ = SetMenuDefaultItem(hmenu, ID_OPEN, 0);
+
+        let mut pt = POINT::default();
+        let _ = GetCursorPos(&mut pt);
+        // Required so the menu closes when clicking elsewhere.
+        let _ = SetForegroundWindow(hwnd);
+        let cmd = TrackPopupMenu(
+            hmenu,
+            TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY,
+            pt.x,
+            pt.y,
+            None,
+            hwnd,
+            None,
+        );
+        let _ = PostMessageW(Some(hwnd), WM_NULL, WPARAM(0), LPARAM(0));
+        let _ = DestroyMenu(hmenu);
+
+        match cmd.0 as u32 {
+            ID_OPEN => open_ui(port, ""),
+            ID_WRAPPED => open_ui(port, "#wrapped"),
+            ID_PAUSE => {
+                let now_paused = tray(|t| {
+                    t.paused = !t.paused;
+                    let _ = t.tx.send(Cmd::Pause(t.paused));
+                    t.paused
+                });
+                dlog!(
+                    "tracking {}",
+                    if now_paused == Some(true) {
+                        "paused"
                     } else {
-                        "Pause tracking"
-                    });
-                    let _ = tray.set_icon(tray_icon(paused));
-                    let _ = tray.set_tooltip(Some(if paused {
-                        "Activity Tracker (paused)"
-                    } else {
-                        "Activity Tracker"
-                    }));
-                } else if ev.id == *startup.id() {
-                    let enable = !autostart_enabled();
-                    match set_autostart(exe, enable) {
+                        "resumed"
+                    }
+                );
+                set_tray_icon(hwnd, false);
+            }
+            ID_STARTUP => {
+                let enable = !autostart_enabled();
+                if let Some(exe) = tray(|t| t.exe.clone()) {
+                    match set_autostart(&exe, enable) {
                         Ok(()) => {
                             dlog!("autostart {}", if enable { "enabled" } else { "disabled" })
                         }
                         Err(e) => dlog!("error: autostart change failed: {e}"),
                     }
-                    startup.set_checked(autostart_enabled());
-                } else if ev.id == *quit.id() {
-                    PostQuitMessage(0);
+                }
+            }
+            ID_QUIT => {
+                stop_collector();
+                PostQuitMessage(0);
+            }
+            _ => {}
+        }
+    }
+}
+
+unsafe extern "system" fn tray_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    match msg {
+        WM_TRAY => match lp.0 as u32 {
+            WM_LBUTTONUP => {
+                if let Some(port) = tray(|t| t.port) {
+                    open_ui(port, "");
+                }
+            }
+            WM_RBUTTONUP | WM_CONTEXTMENU => show_menu(hwnd),
+            NIN_BALLOONUSERCLICK => {
+                if let Some((port, page)) = tray(|t| (t.port, t.notice_page)) {
+                    open_ui(port, page);
+                }
+            }
+            _ => {}
+        },
+        WM_NOTICE => {
+            let pending: Vec<Notice> = NOTICES
+                .lock()
+                .map(|mut q| q.drain(..).collect())
+                .unwrap_or_default();
+            for n in pending {
+                let Some((lang, port, auto_open)) = tray(|t| {
+                    t.notice_page = n.page();
+                    (t.lang, t.port, t.wrapped_auto_open)
+                }) else {
+                    continue;
+                };
+                if n == Notice::Wrapped && auto_open {
+                    open_ui(port, n.page());
+                } else {
+                    let (title, body) = n.text(lang);
+                    show_notification(hwnd, &title, &body);
                 }
             }
         }
+        WM_QUERYENDSESSION => return LRESULT(1),
+        WM_ENDSESSION => {
+            // Windows is shutting down / logging off: save the current session now.
+            if wp.0 != 0 {
+                dlog!("Windows session ending: flushing");
+                stop_collector();
+            }
+            return LRESULT(0);
+        }
+        // Explorer restarted: the icon must be added again.
+        m if m != 0 && m == TASKBAR_CREATED.load(Ordering::Relaxed) => set_tray_icon(hwnd, true),
+        _ => {}
     }
-    Ok(())
+    unsafe { DefWindowProcW(hwnd, msg, wp, lp) }
+}
+
+/// Creates the hidden window that owns the tray icon.
+fn create_tray_window() -> Option<HWND> {
+    unsafe {
+        let module = GetModuleHandleW(None).ok()?;
+        let class = w!("ActivityTrackerTray");
+        let wc = WNDCLASSW {
+            lpfnWndProc: Some(tray_proc),
+            hInstance: HINSTANCE(module.0),
+            lpszClassName: class,
+            ..Default::default()
+        };
+        if RegisterClassW(&wc) == 0 {
+            return None;
+        }
+        TASKBAR_CREATED.store(
+            RegisterWindowMessageW(w!("TaskbarCreated")),
+            Ordering::Relaxed,
+        );
+        let hwnd = CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            class,
+            w!("Activity Tracker"),
+            WS_OVERLAPPED,
+            0,
+            0,
+            0,
+            0,
+            None,
+            None,
+            Some(HINSTANCE(module.0)),
+            None,
+        )
+        .ok()?;
+        TRAY_HWND.store(hwnd.0 as isize, Ordering::Relaxed);
+        Some(hwnd)
+    }
 }
 
 // ---------------------------------------------------------------- entry point
@@ -487,7 +762,12 @@ pub fn main() -> i32 {
         };
     }
 
+    unsafe {
+        // Sharp tray icon and menu on high-DPI screens.
+        let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
     let (cfg, cfg_err) = Config::load_or_create(&dir.join("config.toml"));
+    let lang = Lang::resolve(&cfg.language, system_is_french());
     let offset = Store::open_in_memory()
         .map(|s| s.local_offset())
         .unwrap_or(0);
@@ -505,15 +785,15 @@ pub fn main() -> i32 {
             eprintln!("warning: {e}");
         }
     }
-    dlog!("config: {cfg:?}");
+    dlog!("config: {cfg:?}, language {}", lang.code());
     set_low_priority();
 
     if has("--selftest") {
-        return selftest(cfg, &exe);
+        return selftest(cfg, lang, &exe);
     }
     if !single_instance() {
         dlog!("another instance is running: opening the dashboard and exiting");
-        open_browser(cfg.web_port, "");
+        open_ui(cfg.web_port, "");
         return 0;
     }
 
@@ -535,25 +815,49 @@ pub fn main() -> i32 {
     let port = cfg.web_port;
     {
         let (db, cfg) = (db.clone(), cfg.clone());
-        std::thread::spawn(move || server::serve(&db, cfg, Some(exe_icon_png)));
+        std::thread::spawn(move || server::serve(&db, cfg, lang, Some(exe_icon_png)));
     }
-    let (tx, rx) = channel();
-    let worker =
-        std::thread::spawn(move || collector::run(Collector::new(WinProbe::new(), store, cfg), rx));
 
-    if let Err(e) = run_tray(&tx, port, &exe) {
-        dlog!("error: tray icon unavailable ({e}); running without it");
+    let (tx, rx) = channel();
+    let hwnd = create_tray_window();
+    *TRAY.lock().unwrap() = Some(Tray {
+        tx,
+        worker: None,
+        port,
+        exe: exe.clone(),
+        lang,
+        paused: false,
+        wrapped_auto_open: cfg.wrapped_auto_open,
+        notice_page: "",
+    });
+    let mut collector = Collector::new(WinProbe::new(), store, cfg);
+    collector.notify = Box::new(post_notice);
+    let worker = std::thread::spawn(move || collector::run(collector, rx));
+
+    let Some(hwnd) = hwnd else {
+        dlog!("error: tray window unavailable; tracking without it");
         let _ = worker.join(); // keeps tracking until the process is killed
         return 0;
+    };
+    tray(|t| t.worker = Some(worker));
+    set_tray_icon(hwnd, true);
+
+    let mut msg = MSG::default();
+    unsafe {
+        // GetMessageW blocks: zero CPU while nothing happens.
+        while GetMessageW(&mut msg, None, 0, 0).0 > 0 {
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+        let _ = Shell_NotifyIconW(NIM_DELETE, &icon_data(hwnd));
     }
-    let _ = tx.send(Cmd::Quit);
-    let _ = worker.join();
+    stop_collector();
     dlog!("exit");
     0
 }
 
 /// Runs the real collector for 15 s against an in-memory database and reports its own cost.
-fn selftest(cfg: Config, exe: &Path) -> i32 {
+fn selftest(cfg: Config, lang: Lang, exe: &Path) -> i32 {
     println!(
         "activity-tracker {} selftest: sampling for 15 s every {} s...",
         env!("CARGO_PKG_VERSION"),
@@ -585,6 +889,7 @@ fn selftest(cfg: Config, exe: &Path) -> i32 {
     for json in [
         server::summary_json(&c.store, &cfg, "today", now_unix()),
         server::wrapped_json(&c.store, &cfg, 1, now_unix()),
+        server::year_json(&c.store, &cfg, now_unix()),
     ] {
         if serde_json::from_str::<serde_json::Value>(&json).is_err() {
             errors += 1;
@@ -592,7 +897,7 @@ fn selftest(cfg: Config, exe: &Path) -> i32 {
         }
     }
     let own_icon = exe_icon_png(&exe.to_string_lossy());
-    let tray_ok = tray_icon(false).is_some() && tray_icon(true).is_some();
+    let icons_ok = !load_icon(1, true).is_invalid() && !load_icon(2, true).is_invalid();
 
     let fg = c.probe.foreground_process();
     let idle = c.probe.idle_seconds();
@@ -604,19 +909,25 @@ fn selftest(cfg: Config, exe: &Path) -> i32 {
     println!(
         "foreground process : {}",
         fg.as_ref()
-            .map_or("(none)".into(), |(n, p)| format!("{n}  ({p})"))
+            .map_or("(none)".into(), |f| format!("{}  ({})", f.name, f.path))
+    );
+    println!(
+        "scene / project    : {}",
+        fg.as_ref()
+            .and_then(|f| crate::project::project_from_title(&f.title))
+            .unwrap_or_else(|| "(none)".into())
     );
     println!("idle seconds       : {idle}");
     println!("session locked     : {locked}");
+    println!("language           : {}", lang.code());
     println!("autostart enabled  : {}", autostart_enabled());
-    println!("samples / errors   : {ticks} / {errors}");
     println!(
-        "sessions recorded  : {}",
-        c.store
-            .sessions_between(-1, i64::MAX)
-            .map(|v| v.len())
-            .unwrap_or(0)
+        "app window (Edge)  : {}",
+        edge_path().map_or("not found, browser fallback".into(), |p| p
+            .display()
+            .to_string())
     );
+    println!("samples / errors   : {ticks} / {errors}");
     println!(
         "exe icon -> PNG    : {}",
         own_icon
@@ -625,7 +936,7 @@ fn selftest(cfg: Config, exe: &Path) -> i32 {
     );
     println!(
         "tray icons         : {}",
-        if tray_ok { "ok" } else { "MISSING" }
+        if icons_ok { "ok" } else { "MISSING" }
     );
     println!(
         "working set        : {:.1} MB (peak {:.1} MB)",
@@ -639,7 +950,7 @@ fn selftest(cfg: Config, exe: &Path) -> i32 {
         cpu / wall * 100.0
     );
     dlog!("selftest: ws {ws} peak {peak} cpu {cpu:.3}s ticks {ticks} errors {errors}");
-    if errors == 0 && own_icon.is_some() && tray_ok {
+    if errors == 0 && own_icon.is_some() && icons_ok {
         println!("SELFTEST OK");
         0
     } else {

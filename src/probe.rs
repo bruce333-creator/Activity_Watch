@@ -1,8 +1,18 @@
 //! The only interface between the pure logic and the OS.
 
+/// The app in front of the user.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Foreground {
+    /// Lowercased exe name, e.g. "maya.exe".
+    pub name: String,
+    /// Full exe path (for the icon).
+    pub path: String,
+    /// Window title (only parsed for a scene / project file name, never stored).
+    pub title: String,
+}
+
 pub trait SystemProbe {
-    /// Foreground window's process: (lowercased exe name like "maya.exe", full exe path).
-    fn foreground_process(&mut self) -> Option<(String, String)>;
+    fn foreground_process(&mut self) -> Option<Foreground>;
     /// Seconds since the last keyboard/mouse input.
     fn idle_seconds(&mut self) -> u64;
     /// True when the workstation is locked (or the secure desktop is shown).
@@ -18,16 +28,19 @@ pub trait SystemProbe {
 #[derive(Default)]
 pub struct FakeProbe {
     pub foreground: Option<String>,
+    pub title: String,
     pub idle: u64,
     pub locked: bool,
 }
 
 #[cfg(test)]
 impl SystemProbe for FakeProbe {
-    fn foreground_process(&mut self) -> Option<(String, String)> {
-        self.foreground
-            .clone()
-            .map(|p| (p.clone(), format!("C:\\Apps\\{p}")))
+    fn foreground_process(&mut self) -> Option<Foreground> {
+        self.foreground.clone().map(|name| Foreground {
+            path: format!("C:\\Apps\\{name}"),
+            name,
+            title: self.title.clone(),
+        })
     }
     fn idle_seconds(&mut self) -> u64 {
         self.idle

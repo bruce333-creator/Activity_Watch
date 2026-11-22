@@ -2,9 +2,10 @@
 
 use crate::config::Config;
 use crate::dlog;
-use crate::stats::{summarize, summary_span, wrapped, wrapped_span};
+use crate::notice::Lang;
+use crate::stats::{summarize, summary_span, wrapped, wrapped_span, year, year_span};
 use crate::store::Store;
-use crate::timeutil::now_unix;
+use crate::timeutil::{datetime_string, now_unix};
 use std::collections::HashMap;
 use std::path::Path;
 use tiny_http::{Header, Response, Server};
@@ -32,6 +33,43 @@ pub fn wrapped_json(store: &Store, cfg: &Config, weeks_ago: i64, now: i64) -> St
     let sessions = store.sessions_between(from, to).unwrap_or_default();
     serde_json::to_string(&wrapped(&sessions, weeks_ago, now, offset, cfg))
         .unwrap_or_else(|_| "{}".into())
+}
+
+/// JSON body for /api/year (heatmap + streaks).
+pub fn year_json(store: &Store, cfg: &Config, now: i64) -> String {
+    let offset = store.local_offset();
+    let (from, to) = year_span(now, offset);
+    let sessions = store.sessions_between(from, to).unwrap_or_default();
+    serde_json::to_string(&year(&sessions, now, offset, cfg)).unwrap_or_else(|_| "{}".into())
+}
+
+fn csv_field(s: &str) -> String {
+    if s.contains([',', '"', '\n', '\r']) {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+/// Every recorded session as CSV (local times).
+pub fn export_csv(store: &Store, cfg: &Config) -> String {
+    let offset = store.local_offset();
+    let mut out = String::from("start,end,minutes,app,process,project\r\n");
+    for s in store
+        .sessions_between(i64::MIN / 2, i64::MAX / 2)
+        .unwrap_or_default()
+    {
+        out += &format!(
+            "{},{},{:.1},{},{},{}\r\n",
+            datetime_string(s.start, offset),
+            datetime_string(s.end, offset),
+            (s.end - s.start) as f64 / 60.0,
+            csv_field(&cfg.friendly(&s.process)),
+            csv_field(&s.process),
+            csv_field(s.project.as_deref().unwrap_or("")),
+        );
+    }
+    out
 }
 
 fn query_param<'a>(url: &'a str, key: &str) -> Option<&'a str> {
@@ -66,7 +104,7 @@ fn percent_decode(s: &str) -> String {
 }
 
 /// Serves forever on the calling thread.
-pub fn serve(db_path: &Path, cfg: Config, icon: Option<IconFn>) {
+pub fn serve(db_path: &Path, cfg: Config, lang: Lang, icon: Option<IconFn>) {
     let addr = format!("127.0.0.1:{}", cfg.web_port);
     let server = match Server::http(&addr) {
         Ok(s) => s,
@@ -104,6 +142,34 @@ pub fn serve(db_path: &Path, cfg: Config, icon: Option<IconFn>) {
                 let range = query_param(&url, "range").unwrap_or("today");
                 let body = summary_json(&store, &cfg, range, now_unix());
                 req.respond(Response::from_string(body).with_header(header("application/json")))
+            }
+            "/api/config" => {
+                let body = serde_json::json!({
+                    "lang": lang.code(),
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "goal": cfg.goal_secs(),
+                    "break_minutes": cfg.break_minutes,
+                    "break_reminder_minutes": cfg.break_reminder_minutes,
+                });
+                req.respond(
+                    Response::from_string(body.to_string()).with_header(header("application/json")),
+                )
+            }
+            "/api/year" => {
+                let body = year_json(&store, &cfg, now_unix());
+                req.respond(Response::from_string(body).with_header(header("application/json")))
+            }
+            "/api/export.csv" => {
+                let disposition = Header::from_bytes(
+                    "Content-Disposition",
+                    "attachment; filename=\"activity-tracker.csv\"",
+                )
+                .unwrap();
+                req.respond(
+                    Response::from_string(export_csv(&store, &cfg))
+                        .with_header(header("text/csv; charset=utf-8"))
+                        .with_header(disposition),
+                )
             }
             "/api/wrapped" => {
                 let weeks_ago = query_param(&url, "weeks_ago")
@@ -161,7 +227,7 @@ mod tests {
     fn api_json() {
         let store = Store::open_in_memory().unwrap();
         let now = now_unix();
-        store.insert(now - 600, now - 60, "maya.exe").unwrap();
+        store.insert(now - 600, now - 60, "maya.exe", None).unwrap();
         let v: serde_json::Value =
             serde_json::from_str(&summary_json(&store, &Config::default(), "week", now)).unwrap();
         assert_eq!(v["range"], "week");
@@ -170,6 +236,23 @@ mod tests {
         let w: serde_json::Value =
             serde_json::from_str(&wrapped_json(&store, &Config::default(), 0, now)).unwrap();
         assert_eq!(w["days"].as_array().unwrap().len(), 7);
-        assert!(w["persona"]["title"].is_string());
+        assert!(w["persona"]["kind"].is_string());
+        let y: serde_json::Value =
+            serde_json::from_str(&year_json(&store, &Config::default(), now)).unwrap();
+        assert!(y["days"].as_array().unwrap().len() >= 52 * 7);
+    }
+
+    #[test]
+    fn csv_export() {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .insert(0, 90, "maya.exe", Some("my, \"robot\".mb"))
+            .unwrap();
+        let csv = export_csv(&store, &Config::default());
+        let line = csv.lines().nth(1).unwrap();
+        assert!(
+            line.ends_with(",1.5,Maya,maya.exe,\"my, \"\"robot\"\".mb\""),
+            "{line}"
+        );
     }
 }

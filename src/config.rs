@@ -16,17 +16,52 @@ idle_threshold_secs = 180
 daily_goal_hours = 8.0
 break_minutes = 5
 
+# Windows notifications (break reminder, app limits, daily goal, weekly Wrapped).
+notifications = true
+# Remind me to take a break after this many minutes without one (0 = never).
+break_reminder_minutes = 60
+# Open the Wrapped window automatically on the first use of a new week (else: a notification).
+wrapped_auto_open = false
+
+# "auto" (Windows language), "fr" or "en".
+language = "auto"
+
+# Your creative / focus apps (display names), used for the daily streak.
+# Default: Maya, Blender, Houdini, ZBrush, Substance Painter, Photoshop, Nuke,
+# After Effects, Premiere Pro, Unreal Engine, RenderMan.
+# focus_apps = ["Maya", "Blender"]
+# A streak day needs at least this many minutes in your focus apps.
+streak_minutes = 30
+
 # Apps that are never recorded.
 ignored_apps = ["lockapp.exe"]
 
 # Local dashboard: http://127.0.0.1:<web_port>
 web_port = 8765
 
+# Daily limits per app, in minutes (display names). A notification is shown when reached.
+[app_limits]
+# "Discord" = 60
+
 # Display names. Several processes with the same name are merged into one app
 # (all Maya processes count as "Maya"). These add to / override the built-in list.
 [friendly_names]
 # "houdinifx.exe" = "Houdini"
 "#;
+
+const DEFAULT_FOCUS_APPS: &[&str] = &[
+    "Maya",
+    "Blender",
+    "Houdini",
+    "ZBrush",
+    "Substance Painter",
+    "Photoshop",
+    "Nuke",
+    "After Effects",
+    "Premiere Pro",
+    "Unreal Engine",
+    "RenderMan",
+];
 
 /// Built-in display names. Processes sharing a name are merged in the dashboard.
 const BUILTIN_NAMES: &[(&str, &str)] = &[
@@ -70,8 +105,15 @@ pub struct Config {
     pub idle_threshold_secs: u64,
     pub daily_goal_hours: f64,
     pub break_minutes: u64,
+    pub notifications: bool,
+    pub break_reminder_minutes: u64,
+    pub wrapped_auto_open: bool,
+    pub language: String,
+    pub focus_apps: Vec<String>,
+    pub streak_minutes: u64,
     pub ignored_apps: Vec<String>,
     pub web_port: u16,
+    pub app_limits: HashMap<String, u64>,
     pub friendly_names: HashMap<String, String>,
 }
 
@@ -137,6 +179,18 @@ impl Config {
         self.break_minutes as i64 * 60
     }
 
+    /// Daily limit for an app (display name, case-insensitive), in seconds.
+    pub fn app_limit_secs(&self, name: &str) -> Option<i64> {
+        self.app_limits
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(name))
+            .map(|(_, m)| *m as i64 * 60)
+    }
+
+    pub fn is_focus_app(&self, name: &str) -> bool {
+        self.focus_apps.iter().any(|a| a.eq_ignore_ascii_case(name))
+    }
+
     pub fn goal_secs(&self) -> i64 {
         (self.daily_goal_hours.max(0.0) * 3600.0) as i64
     }
@@ -148,8 +202,15 @@ impl Config {
             idle_threshold_secs: 180,
             daily_goal_hours: 8.0,
             break_minutes: 5,
+            notifications: true,
+            break_reminder_minutes: 60,
+            wrapped_auto_open: false,
+            language: "auto".into(),
+            focus_apps: DEFAULT_FOCUS_APPS.iter().map(|s| s.to_string()).collect(),
+            streak_minutes: 30,
             ignored_apps: Vec::new(),
             web_port: 8765,
+            app_limits: HashMap::new(),
             friendly_names: HashMap::new(),
         }
     }
@@ -187,6 +248,21 @@ mod tests {
         assert_eq!(c.friendly("houdinifx.exe"), "H");
         assert_eq!(c.friendly("chrome.exe"), "Web");
         assert_eq!(c.friendly("maya.exe"), "Maya");
+    }
+
+    #[test]
+    fn limits_and_focus_apps() {
+        let c = Config::parse("[app_limits]\n\"Discord\" = 45").unwrap();
+        assert_eq!(c.app_limit_secs("discord"), Some(45 * 60));
+        assert_eq!(c.app_limit_secs("Maya"), None);
+        assert!(Config::default().is_focus_app("maya"));
+        // Config files written by older versions have no focus_apps: the default list applies.
+        assert!(
+            Config::parse("web_port = 1")
+                .unwrap()
+                .is_focus_app("Blender")
+        );
+        assert_eq!(Config::default().break_reminder_minutes, 60);
     }
 
     #[test]

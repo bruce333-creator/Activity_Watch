@@ -1,5 +1,5 @@
-//! Aggregation for the dashboard: totals, per-app time, wellbeing, weekly wrapped.
-//! Platform independent.
+//! Aggregation for the dashboard: totals, apps, projects, wellbeing, focus, Wrapped, year.
+//! Platform independent. Texts are produced by the page (FR/EN), not here.
 
 use crate::config::Config;
 use crate::store::Session;
@@ -9,14 +9,24 @@ use std::collections::HashMap;
 
 /// Hours before this local time belong to the previous "day" for start/end-of-day metrics.
 const DAY_CUTOFF: i64 = 5 * 3600;
-/// Consecutive sessions of the same app closer than this are drawn as one block.
+/// Consecutive sessions of the same app closer than this form one block / one focus run.
 const SEGMENT_JOIN: i64 = 120;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Debug, Clone, Default)]
 pub struct AppTime {
     /// Display name; all processes with the same name are merged (maya.exe + mayabatch.exe = "Maya").
     pub name: String,
     /// The process with the most time in this group (used for the icon).
+    pub process: String,
+    pub seconds: i64,
+    /// Same app over the previous comparable period.
+    pub previous: i64,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct ProjectTime {
+    pub name: String,
+    pub app: String,
     pub process: String,
     pub seconds: i64,
 }
@@ -49,13 +59,25 @@ pub struct Wellbeing {
     pub late_night: i64,
 }
 
+#[derive(Serialize, Debug, Default, Clone)]
+pub struct Focus {
+    /// Longest continuous run in a single app.
+    pub longest: i64,
+    pub longest_app: Option<String>,
+    /// App changes while working (not counting breaks), and per active hour.
+    pub switches: u32,
+    pub switches_per_hour: f64,
+}
+
 pub struct Analysis {
     pub total: i64,
     pub apps: Vec<AppTime>,
+    pub projects: Vec<ProjectTime>,
     pub days: Vec<Bucket>,
     pub hours: Vec<i64>,
     pub segments: Vec<Segment>,
     pub wellbeing: Wellbeing,
+    pub focus: Focus,
 }
 
 /// Time-of-day on a day that starts at 05:00: 05:00 -> 18000, 01:00 -> 90000.
@@ -65,6 +87,39 @@ fn tod(ts: i64, offset: i64) -> i64 {
 
 fn wake_day(ts: i64, offset: i64) -> i64 {
     local_day(ts - DAY_CUTOFF, offset)
+}
+
+/// Splits [a, b) at local hour boundaries: f(start, end, local hour 0-23, local day).
+fn for_each_hour(a: i64, b: i64, offset: i64, mut f: impl FnMut(i64, i64, usize, i64)) {
+    let mut t = a;
+    while t < b {
+        let hour_index = (t + offset).div_euclid(3600);
+        let next = ((hour_index + 1) * 3600 - offset).min(b);
+        f(
+            t,
+            next,
+            hour_index.rem_euclid(24) as usize,
+            local_day(t, offset),
+        );
+        t = next;
+    }
+}
+
+fn group<'a>(map: HashMap<String, HashMap<&'a str, i64>>) -> Vec<(String, String, i64)> {
+    let mut v: Vec<(String, String, i64)> = map
+        .into_iter()
+        .map(|(name, procs)| {
+            let seconds = procs.values().sum();
+            let process = procs
+                .into_iter()
+                .max_by_key(|(p, s)| (*s, *p))
+                .map(|(p, _)| p.to_string())
+                .unwrap_or_default();
+            (name, process, seconds)
+        })
+        .collect();
+    v.sort_by(|a, b| b.2.cmp(&a.2).then(a.0.cmp(&b.0)));
+    v
 }
 
 /// Everything about local days [d0, d1), counting time up to `now`.
@@ -85,10 +140,15 @@ pub fn analyze(
         })
         .collect();
     let mut hours = vec![0i64; 24];
-    let mut groups: HashMap<String, HashMap<&str, i64>> = HashMap::new();
+    let mut apps: HashMap<String, HashMap<&str, i64>> = HashMap::new();
+    let mut projects: HashMap<String, HashMap<&str, i64>> = HashMap::new();
+    let mut project_app: HashMap<String, String> = HashMap::new();
     let mut segments: Vec<Segment> = Vec::new();
     let mut stretches: Vec<(i64, i64)> = Vec::new();
     let mut w = Wellbeing::default();
+    let mut focus = Focus::default();
+    let mut run: Option<(String, i64, i64)> = None; // current single-app run
+    let mut prev: Option<(String, i64)> = None; // previous session (name, end)
     let mut total = 0;
 
     let mut clipped: Vec<(i64, i64, &Session)> = sessions
@@ -101,27 +161,29 @@ pub fn analyze(
     for &(a, b, s) in &clipped {
         let name = cfg.friendly(&s.process);
         total += b - a;
-        *groups
+        *apps
             .entry(name.clone())
             .or_default()
             .entry(&s.process)
             .or_default() += b - a;
-
-        // Walk hour by hour (also splits sessions at midnight).
-        let mut t = a;
-        while t < b {
-            let hour_index = (t + offset).div_euclid(3600);
-            let next = ((hour_index + 1) * 3600 - offset).min(b);
-            let h = hour_index.rem_euclid(24) as usize;
-            hours[h] += next - t;
-            if h >= 23 || h < 5 {
-                w.late_night += next - t;
-            }
-            if let Some(day) = days.get_mut((local_day(t, offset) - d0) as usize) {
-                day.seconds += next - t;
-            }
-            t = next;
+        if let Some(p) = &s.project {
+            *projects
+                .entry(p.clone())
+                .or_default()
+                .entry(&s.process)
+                .or_default() += b - a;
+            project_app.insert(p.clone(), name.clone());
         }
+
+        for_each_hour(a, b, offset, |x, y, h, day| {
+            hours[h] += y - x;
+            if h >= 23 || h < 5 {
+                w.late_night += y - x;
+            }
+            if let Some(d) = days.get_mut((day - d0) as usize) {
+                d.seconds += y - x;
+            }
+        });
 
         if d1 - d0 == 1 {
             match segments.last_mut() {
@@ -139,6 +201,29 @@ pub fn analyze(
             Some(last) if a - last.1 < cfg.break_secs() => last.1 = last.1.max(b),
             _ => stretches.push((a, b)),
         }
+        // Focus: same app with only tiny gaps = one run; a different app right after = a switch.
+        if let Some((pname, pend)) = &prev {
+            if *pname != name && a - pend < cfg.break_secs() {
+                focus.switches += 1;
+            }
+        }
+        run = match run {
+            Some((rname, rstart, rend)) if rname == name && a - rend < SEGMENT_JOIN => {
+                Some((rname, rstart, b.max(rend)))
+            }
+            _ => Some((name.clone(), a, b)),
+        };
+        if let Some((rname, rstart, rend)) = &run {
+            if rend - rstart > focus.longest {
+                focus.longest = rend - rstart;
+                focus.longest_app = Some(rname.clone());
+            }
+        }
+        prev = Some((name, b));
+    }
+    if total >= 600 {
+        focus.switches_per_hour =
+            (focus.switches as f64 * 3600.0 / total as f64 * 10.0).round() / 10.0;
     }
 
     for (i, &(a, b)) in stretches.iter().enumerate() {
@@ -153,32 +238,54 @@ pub fn analyze(
         }
     }
 
-    let mut apps: Vec<AppTime> = groups
-        .into_iter()
-        .map(|(name, procs)| {
-            let seconds = procs.values().sum();
-            let process = procs
-                .into_iter()
-                .max_by_key(|(_, s)| *s)
-                .map(|(p, _)| p.to_string())
-                .unwrap_or_default();
-            AppTime {
+    Analysis {
+        total,
+        apps: group(apps)
+            .into_iter()
+            .map(|(name, process, seconds)| AppTime {
                 name,
                 process,
                 seconds,
-            }
-        })
-        .collect();
-    apps.sort_by(|a, b| b.seconds.cmp(&a.seconds).then(a.name.cmp(&b.name)));
-
-    Analysis {
-        total,
-        apps,
+                previous: 0,
+            })
+            .collect(),
+        projects: group(projects)
+            .into_iter()
+            .map(|(name, process, seconds)| ProjectTime {
+                app: project_app[&name].clone(),
+                name,
+                process,
+                seconds,
+            })
+            .collect(),
         days,
         hours,
         segments,
         wellbeing: w,
+        focus,
     }
+}
+
+/// Fills `previous` of each app, and adds apps only used in the previous period.
+fn with_previous(mut apps: Vec<AppTime>, previous: &[AppTime]) -> Vec<AppTime> {
+    for p in previous {
+        match apps.iter_mut().find(|a| a.name == p.name) {
+            Some(a) => a.previous = p.seconds,
+            None => apps.push(AppTime {
+                seconds: 0,
+                previous: p.seconds,
+                ..p.clone()
+            }),
+        }
+    }
+    apps
+}
+
+#[derive(Serialize, Debug)]
+pub struct Limit {
+    pub name: String,
+    pub limit: i64,
+    pub seconds: i64,
 }
 
 #[derive(Serialize, Debug)]
@@ -192,12 +299,17 @@ pub struct Summary {
     /// Days of the range that have started (for the daily average).
     pub days_elapsed: i64,
     pub goal: i64,
+    /// Sorted by time; apps used only in the previous period come last with 0 seconds.
     pub apps: Vec<AppTime>,
+    pub projects: Vec<ProjectTime>,
     /// "today": 24 hourly buckets; "week"/"month": one bucket per day.
     pub timeline: Vec<Bucket>,
     /// Today's blocks of app usage (empty for week/month).
     pub segments: Vec<Segment>,
     pub wellbeing: Wellbeing,
+    pub focus: Focus,
+    /// Configured daily app limits with today's usage.
+    pub limits: Vec<Limit>,
 }
 
 fn previous_days(range: &str, d0: i64, d1: i64, offset: i64) -> (i64, i64) {
@@ -225,7 +337,27 @@ pub fn summarize(
     let (p0, p1) = previous_days(range, d0, d1, offset);
     let elapsed = now - day_start(d0, offset);
     let prev_now = (day_start(p0, offset) + elapsed).min(day_start(p1, offset));
-    let previous_total = analyze(sessions, p0, p1, prev_now, offset, cfg).total;
+    let prev = analyze(sessions, p0, p1, prev_now, offset, cfg);
+
+    let today = local_day(now, offset);
+    let today_apps = if range == "today" {
+        a.apps.clone()
+    } else {
+        analyze(sessions, today, today + 1, now, offset, cfg).apps
+    };
+    let mut limits: Vec<Limit> = cfg
+        .app_limits
+        .iter()
+        .map(|(name, minutes)| Limit {
+            seconds: today_apps
+                .iter()
+                .find(|a| a.name.eq_ignore_ascii_case(name))
+                .map_or(0, |a| a.seconds),
+            name: name.clone(),
+            limit: *minutes as i64 * 60,
+        })
+        .collect();
+    limits.sort_by(|a, b| a.name.cmp(&b.name));
 
     let timeline = if range == "today" {
         a.hours
@@ -244,13 +376,16 @@ pub fn summarize(
         from: date_string(d0),
         to: date_string(d1 - 1),
         total: a.total,
-        previous_total,
-        days_elapsed: (local_day(now, offset) + 1).min(d1) - d0,
+        previous_total: prev.total,
+        days_elapsed: (today + 1).min(d1) - d0,
         goal: cfg.goal_secs(),
-        apps: a.apps,
+        apps: with_previous(a.apps, &prev.apps),
+        projects: a.projects.into_iter().take(10).collect(),
         timeline,
         segments: a.segments,
         wellbeing: a.wellbeing,
+        focus: a.focus,
+        limits,
     }
 }
 
@@ -261,11 +396,13 @@ pub fn summary_span(range: &str, now: i64, offset: i64) -> (i64, i64) {
     (day_start(p0, offset), day_start(d1, offset))
 }
 
+/// The week's character. `kind` is translated by the page; `value`/`app` fill the sentence.
 #[derive(Serialize, Debug)]
 pub struct Persona {
-    pub emoji: String,
-    pub title: String,
-    pub text: String,
+    pub kind: &'static str,
+    pub emoji: &'static str,
+    pub value: i64,
+    pub app: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -280,92 +417,59 @@ pub struct Wrapped {
     pub goal: i64,
     pub app_count: usize,
     pub top_apps: Vec<AppTime>,
+    pub top_projects: Vec<ProjectTime>,
+    /// Biggest increase and decrease of an app vs the week before.
+    pub rise: Option<AppTime>,
+    pub fall: Option<AppTime>,
     pub days: Vec<Bucket>,
     pub busiest_day: Option<Bucket>,
     pub peak_hour: Option<usize>,
     pub wellbeing: Wellbeing,
+    pub focus: Focus,
     pub persona: Persona,
 }
 
-pub fn fmt_duration(secs: i64) -> String {
-    let (h, m) = (secs / 3600, secs % 3600 / 60);
-    if h > 0 {
-        format!("{h} h {m:02}")
-    } else {
-        format!("{m} min")
-    }
-}
-
-fn fmt_clock(t: i64) -> String {
-    format!("{:02}:{:02}", t / 3600 % 24, t / 60 % 60)
-}
-
-fn persona(total: i64, active_days: usize, apps: &[AppTime], w: &Wellbeing) -> Persona {
-    let p = |e: &str, t: String, x: String| Persona {
-        emoji: e.into(),
-        title: t,
-        text: x,
+fn persona(a: &Analysis, active_days: usize) -> Persona {
+    let p = |kind, emoji, value, app: Option<&str>| Persona {
+        kind,
+        emoji,
+        value,
+        app: app.map(str::to_string),
     };
+    let (w, total) = (&a.wellbeing, a.total);
     if total == 0 {
-        return p(
-            "😴",
-            "Semaine off".into(),
-            "Aucune activité enregistrée : profite !".into(),
-        );
+        return p("off", "😴", 0, None);
     }
     if w.late_night >= 3 * 3600 {
-        return p(
-            "🦉",
-            "Oiseau de nuit".into(),
-            format!("{} passées entre 23 h et 5 h.", fmt_duration(w.late_night)),
-        );
+        return p("night_owl", "🦉", w.late_night, None);
     }
     if w.longest_stretch >= 3 * 3600 {
-        return p(
-            "🏃",
-            "Marathonien".into(),
-            format!(
-                "Une session de {} sans vraie pause.",
-                fmt_duration(w.longest_stretch)
-            ),
-        );
+        return p("marathon", "🏃", w.longest_stretch, None);
     }
     if let Some(start) = w.first_start.filter(|s| *s < 7 * 3600) {
-        return p(
-            "🌅",
-            "Lève-tôt".into(),
-            format!("Premier démarrage à {}.", fmt_clock(start)),
-        );
+        return p("early_bird", "🌅", start, None);
     }
-    if let Some(top) = apps.first().filter(|a| a.seconds * 10 >= total * 6) {
-        let pct = top.seconds * 100 / total;
+    if let Some(top) = a.apps.first().filter(|t| t.seconds * 10 >= total * 6) {
+        return p("loyal", "🎯", top.seconds * 100 / total, Some(&top.name));
+    }
+    if a.focus.longest >= 2 * 3600 {
         return p(
-            "🎯",
-            format!("Fidèle à {}", top.name),
-            format!("{pct} % de ton temps sur {}.", top.name),
+            "deep_focus",
+            "🧠",
+            a.focus.longest,
+            a.focus.longest_app.as_deref(),
         );
     }
     if active_days > 0 && w.breaks as usize >= 6 * active_days {
-        return p(
-            "🧘",
-            "Zen".into(),
-            format!(
-                "{} pauses par jour en moyenne.",
-                w.breaks as usize / active_days
-            ),
-        );
+        return p("zen", "🧘", (w.breaks as usize / active_days) as i64, None);
     }
-    p(
-        "⚖️",
-        "Équilibré".into(),
-        "Une semaine bien répartie entre tes apps.".into(),
-    )
+    p("balanced", "⚖️", 0, None)
 }
 
 /// Week (Monday..Sunday) `weeks_ago` weeks before the current one (0 = current week so far).
 pub fn wrapped_span(weeks_ago: i64, now: i64, offset: i64) -> (i64, i64) {
     let (d0, _) = range_days("week", now, offset);
-    let monday = d0 - 7 * weeks_ago;
+    let monday = d0 - 7 * weeks_ago.max(0);
     (day_start(monday - 7, offset), day_start(monday + 7, offset))
 }
 
@@ -380,7 +484,7 @@ pub fn wrapped(
     let (d0, _) = range_days("week", now, offset);
     let monday = d0 - 7 * weeks_ago;
     let a = analyze(sessions, monday, monday + 7, now, offset, cfg);
-    let previous_total = analyze(sessions, monday - 7, monday, now, offset, cfg).total;
+    let prev = analyze(sessions, monday - 7, monday, now, offset, cfg);
     let active_days = a.days.iter().filter(|d| d.seconds > 0).count();
     let goal = cfg.goal_secs();
     let days_over_goal = a
@@ -399,22 +503,145 @@ pub fn wrapped(
             .max_by_key(|h| (a.hours[*h], std::cmp::Reverse(*h)))
             .unwrap_or(0)
     });
+    let movers = with_previous(a.apps.clone(), &prev.apps);
+    let delta = |x: &AppTime| x.seconds - x.previous;
+    let threshold = 15 * 60; // ignore tiny changes
+    let rise = movers
+        .iter()
+        .filter(|x| delta(x) >= threshold)
+        .max_by_key(|x| delta(x))
+        .cloned();
+    let fall = movers
+        .iter()
+        .filter(|x| delta(x) <= -threshold)
+        .min_by_key(|x| delta(x))
+        .cloned();
     Wrapped {
         weeks_ago,
         from: date_string(monday),
         to: date_string(monday + 6),
         total: a.total,
-        previous_total,
+        previous_total: prev.total,
         active_days,
         days_over_goal,
         goal,
         app_count: a.apps.len(),
-        persona: persona(a.total, active_days, &a.apps, &a.wellbeing),
-        top_apps: a.apps.into_iter().take(5).collect(),
+        persona: persona(&a, active_days),
+        top_apps: movers
+            .iter()
+            .filter(|x| x.seconds > 0)
+            .take(5)
+            .cloned()
+            .collect(),
+        top_projects: a.projects.iter().take(5).cloned().collect(),
+        rise,
+        fall,
         days: a.days,
         busiest_day,
         peak_hour,
         wellbeing: a.wellbeing,
+        focus: a.focus,
+    }
+}
+
+#[derive(Serialize, Debug, Default, PartialEq)]
+pub struct Streak {
+    pub current: u32,
+    pub best: u32,
+}
+
+#[derive(Serialize, Debug)]
+pub struct Year {
+    /// First day shown (a Monday, 52 weeks before the current week).
+    pub from: String,
+    /// Seconds per day from `from` to today.
+    pub days: Vec<i64>,
+    pub goal: i64,
+    pub total: i64,
+    pub active_days: usize,
+    pub best_day: Option<Bucket>,
+    pub streak_minutes: u64,
+    pub focus_apps: Vec<String>,
+    /// Days in a row with at least `streak_minutes` in the focus apps.
+    pub focus_streak: Streak,
+    /// Days in a row at or under the daily goal (since the first recorded day).
+    pub goal_streak: Streak,
+}
+
+/// Runs of qualifying days. With `grace_today`, `current` may end yesterday when today
+/// does not qualify yet (a day still in progress); without it, a failed today resets it.
+fn streak(ok: &[bool], grace_today: bool) -> Streak {
+    let mut s = Streak::default();
+    let mut run = 0;
+    for &q in ok {
+        run = if q { run + 1 } else { 0 };
+        s.best = s.best.max(run);
+    }
+    let n = ok.len();
+    let tail = |end: usize| ok[..end].iter().rev().take_while(|q| **q).count() as u32;
+    s.current = if n == 0 {
+        0
+    } else if ok[n - 1] {
+        tail(n)
+    } else if grace_today {
+        tail(n - 1)
+    } else {
+        0
+    };
+    s
+}
+
+pub fn year_span(now: i64, offset: i64) -> (i64, i64) {
+    let (monday, _) = range_days("week", now, offset);
+    (day_start(monday - 52 * 7, offset), now)
+}
+
+pub fn year(sessions: &[Session], now: i64, offset: i64, cfg: &Config) -> Year {
+    let (monday, _) = range_days("week", now, offset);
+    let (d0, d1) = (monday - 52 * 7, local_day(now, offset) + 1);
+    let n = (d1 - d0) as usize;
+    let (mut days, mut focus) = (vec![0i64; n], vec![0i64; n]);
+    let (from, to) = (day_start(d0, offset), now);
+    for s in sessions {
+        let (a, b) = (s.start.max(from), s.end.min(to));
+        let is_focus = cfg.is_focus_app(&cfg.friendly(&s.process));
+        for_each_hour(a, b, offset, |x, y, _, day| {
+            let i = (day - d0) as usize;
+            if i < n {
+                days[i] += y - x;
+                if is_focus {
+                    focus[i] += y - x;
+                }
+            }
+        });
+    }
+    let first = days.iter().position(|s| *s > 0).unwrap_or(n);
+    let goal = cfg.goal_secs();
+    let need = cfg.streak_minutes as i64 * 60;
+    let focus_ok: Vec<bool> = focus[first..].iter().map(|f| *f >= need).collect();
+    let goal_ok: Vec<bool> = days[first..]
+        .iter()
+        .map(|d| goal > 0 && *d <= goal)
+        .collect();
+    let best = days
+        .iter()
+        .enumerate()
+        .max_by_key(|(_, s)| **s)
+        .filter(|(_, s)| **s > 0);
+    Year {
+        from: date_string(d0),
+        total: days.iter().sum(),
+        active_days: days.iter().filter(|s| **s > 0).count(),
+        best_day: best.map(|(i, s)| Bucket {
+            label: date_string(d0 + i as i64),
+            seconds: *s,
+        }),
+        goal,
+        streak_minutes: cfg.streak_minutes,
+        focus_apps: cfg.focus_apps.clone(),
+        focus_streak: streak(&focus_ok, true),
+        goal_streak: streak(&goal_ok, false),
+        days,
     }
 }
 
@@ -428,6 +655,7 @@ mod tests {
             start,
             end,
             process: p.into(),
+            project: None,
         }
     }
 
@@ -460,7 +688,6 @@ mod tests {
         assert_eq!(s.apps[0].name, "Maya");
         assert_eq!(s.apps[0].seconds, 2 * 3600 + min(30));
         assert_eq!(s.apps[0].process, "maya.exe");
-        assert_eq!(s.apps.len(), 2);
         // Maya blocks touch: one segment, then Chrome.
         assert_eq!(s.segments.len(), 2);
         assert_eq!(
@@ -471,10 +698,14 @@ mod tests {
                 name: "Maya".into()
             }
         );
+        // Maya: one continuous 2h30 run, then one switch to Chrome.
+        assert_eq!(s.focus.longest, 2 * 3600 + min(30));
+        assert_eq!(s.focus.longest_app.as_deref(), Some("Maya"));
+        assert_eq!(s.focus.switches, 1);
     }
 
     #[test]
-    fn totals_day_week_month() {
+    fn totals_day_week_month_and_previous() {
         let cfg = Config::default();
         let now = at(0, 20);
         let d = summarize(&sample(), "today", now, OFF, &cfg);
@@ -483,6 +714,8 @@ mod tests {
         assert_eq!(d.timeline[11].seconds, 3600);
         assert_eq!(d.previous_total, 3600, "yesterday until 20:00");
         assert_eq!(d.days_elapsed, 1);
+        let chrome = d.apps.iter().find(|a| a.name == "Chrome").unwrap();
+        assert_eq!((chrome.seconds, chrome.previous), (min(30), 3600));
 
         let w = summarize(&sample(), "week", now, OFF, &cfg);
         assert_eq!(w.from, "2026-11-09");
@@ -491,8 +724,7 @@ mod tests {
         assert_eq!(w.total, 9 * 3600);
         assert_eq!(w.timeline[0].seconds, 5 * 3600);
         assert_eq!(w.days_elapsed, 4);
-        // last week until Thursday 20:00 (session at Sun 23h is after that)
-        assert_eq!(w.previous_total, 0);
+        assert_eq!(w.previous_total, 0, "last week until Thursday 20:00");
 
         let m = summarize(&sample(), "month", now, OFF, &cfg);
         assert_eq!(m.timeline.len(), 30);
@@ -503,6 +735,24 @@ mod tests {
         );
         let maya = m.apps.iter().find(|a| a.name == "Maya").unwrap();
         assert_eq!(maya.seconds, 2 * 3600 + min(30) + 3600 + 2 * 3600);
+    }
+
+    #[test]
+    fn projects_and_limits() {
+        let mut cfg = Config::default();
+        cfg.app_limits.insert("chrome".into(), 20);
+        let mut s = sample();
+        s[0].project = Some("robot.mb".into());
+        s[1].project = Some("robot.mb".into());
+        let d = summarize(&s, "today", at(0, 20), OFF, &cfg);
+        assert_eq!(d.projects.len(), 1);
+        assert_eq!(
+            (d.projects[0].name.as_str(), d.projects[0].app.as_str()),
+            ("robot.mb", "Maya")
+        );
+        assert_eq!(d.projects[0].seconds, 2 * 3600 + min(30));
+        assert_eq!(d.limits.len(), 1);
+        assert_eq!((d.limits[0].limit, d.limits[0].seconds), (min(20), min(30)));
     }
 
     #[test]
@@ -546,6 +796,10 @@ mod tests {
             (1 + 1) * 3600 - min(2) + min(45) + 3600 + 3600
         );
         assert_eq!(a.days[1].seconds, 3600);
+        assert_eq!(
+            a.focus.switches, 1,
+            "Maya->Chrome; Chrome->Maya happened after a break, not a switch"
+        );
     }
 
     #[test]
@@ -567,15 +821,82 @@ mod tests {
         assert_eq!(w.busiest_day.as_ref().unwrap().label, "2026-11-03");
         assert_eq!(w.top_apps[0].name, "Maya");
         assert_eq!(w.peak_hour, Some(8));
-        assert_eq!(w.persona.title, "Marathonien");
+        assert_eq!(w.persona.kind, "marathon");
+        // vs the week before (only Nov 1: 1 h of Maya): Maya +10 h, nothing fell.
+        assert_eq!(
+            w.rise
+                .as_ref()
+                .map(|r| (r.name.as_str(), r.seconds - r.previous)),
+            Some(("Maya", 10 * 3600))
+        );
+        assert!(w.fall.is_none());
         let empty = wrapped(&[], 1, now, OFF, &cfg);
-        assert_eq!(empty.persona.title, "Semaine off");
+        assert_eq!(empty.persona.kind, "off");
         assert_eq!(empty.peak_hour, None);
     }
 
     #[test]
-    fn durations() {
-        assert_eq!(fmt_duration(3 * 3600 + 5 * 60), "3 h 05");
-        assert_eq!(fmt_duration(42 * 60), "42 min");
+    fn streaks() {
+        assert_eq!(
+            streak(&[], true),
+            Streak {
+                current: 0,
+                best: 0
+            }
+        );
+        assert_eq!(
+            streak(&[true, true, false, true, true, true], true),
+            Streak {
+                current: 3,
+                best: 3
+            }
+        );
+        // Today does not qualify yet: with grace the streak still counts up to yesterday.
+        assert_eq!(
+            streak(&[true, true, false], true),
+            Streak {
+                current: 2,
+                best: 2
+            }
+        );
+        assert_eq!(
+            streak(&[true, true, false], false),
+            Streak {
+                current: 0,
+                best: 2
+            }
+        );
+    }
+
+    #[test]
+    fn year_heatmap_and_streaks() {
+        let cfg = Config::default(); // goal 8h, streak 30 min of focus apps
+        let now = at(0, 20);
+        let mut s: Vec<Session> = (1..=3)
+            .map(|d| sess(at(-d, 10), at(-d, 11), "blender.exe"))
+            .collect();
+        s.push(sess(at(0, 9), at(0, 18) + min(30), "chrome.exe")); // today: 9h30 of Chrome, over goal
+        let y = year(&s, now, OFF, &cfg);
+        assert_eq!(y.from, "2025-11-10");
+        assert_eq!(y.days.len(), 52 * 7 + 4);
+        assert_eq!(*y.days.last().unwrap(), 9 * 3600 + min(30));
+        assert_eq!(y.active_days, 4);
+        assert_eq!(
+            y.focus_streak,
+            Streak {
+                current: 3,
+                best: 3
+            },
+            "3 Blender days; today not done yet"
+        );
+        assert_eq!(
+            y.goal_streak,
+            Streak {
+                current: 0,
+                best: 3
+            },
+            "today is over the goal"
+        );
+        assert_eq!(y.best_day.unwrap().label, "2026-11-12");
     }
 }

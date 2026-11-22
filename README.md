@@ -1,9 +1,11 @@
 # Activity Tracker
 
-Petit traceur d'activité pour Windows 10/11, écrit en Rust : **combien de temps vous passez sur votre PC**, et dans quelle application, avec un tableau de bord bien-être et un **Wrapped** chaque semaine.
+*by Enzo Freminet · ef tools*
 
-- Un seul `.exe`, sans installation ni dépendance (runtime C liée statiquement), avec son icône.
-- Pas de hook clavier/souris, pas de GPU, pas de réseau : le tableau de bord n'écoute que sur `127.0.0.1`.
+Traceur de temps d'écran pour Windows 10/11, écrit en Rust. Il mesure **combien de temps vous passez sur votre PC** et dans chaque application, avec un tableau de bord bien-être, un **Wrapped** chaque semaine et le temps par projet pour les artistes 3D (Maya, Blender, Houdini…).
+
+- Un seul `.exe` d'environ 2 Mo, sans installation ni dépendance (runtime C liée statiquement).
+- Pas de hook clavier/souris, pas de GPU, pas de réseau : le tableau de bord n'écoute que sur `127.0.0.1`, aucune télémétrie.
 - Échantillonnage toutes les 2 s par un thread endormi, priorité « inférieure à la normale » + EcoQoS (Windows 11).
 - Les données restent chez vous : `%APPDATA%\ActivityTracker\activity.db` (SQLite).
 
@@ -14,34 +16,52 @@ Petit traceur d'activité pour Windows 10/11, écrit en Rust : **combien de temp
 3. En bas de la page, section **Artifacts**, téléchargez **activity-tracker** (un `.zip` contenant `activity-tracker.exe`).
 4. Placez l'exe dans un dossier à vous, par ex. `C:\Outils\ActivityTracker\` (le fichier `config.toml` sera créé à côté au premier lancement).
 
-Pour une version publiée : poussez un tag `v0.1.0` (par ex.) ; l'exe est alors joint à la **Release** GitHub correspondante.
+Pour une version publiée : poussez un tag `v0.3.0` (par ex.) ; l'exe est alors joint à la **Release** GitHub correspondante.
 
 > Windows SmartScreen peut avertir au premier lancement car l'exe n'est pas signé : « Informations complémentaires » → « Exécuter quand même ».
 
 ## Utilisation
 
-Double-cliquez sur `activity-tracker.exe`. Le logo (horloge violet/cyan) apparaît dans la zone de notification (il peut être caché sous la flèche ^). Clic droit :
+Double-cliquez sur `activity-tracker.exe`. Le logo (horloge blanche sur fond noir) apparaît dans la zone de notification ; il peut être caché sous la flèche ^. Faites-le glisser dans la barre pour le garder visible.
 
-- **Open stats** : ouvre le tableau de bord (`http://127.0.0.1:8765/`).
-- **Weekly Wrapped** : ouvre directement le bilan de la semaine.
-- **Pause tracking** / **Resume tracking** : met en pause (l'icône devient grise).
-- **Run at Windows startup** : coché = le traceur démarre avec Windows (cliquer pour activer/désactiver).
-- **Quit** : enregistre la session en cours et quitte.
+- **Clic gauche** : ouvre Activity Tracker dans sa propre fenêtre.
+- **Clic droit** : *Ouvrir Activity Tracker*, *Wrapped de la semaine*, *Mettre en pause / Reprendre le suivi* (l'icône devient grise), *Lancer au démarrage de Windows* (case à cocher), *Quitter*.
 
-Relancer l'exe alors qu'il tourne déjà ouvre simplement le tableau de bord (une seule instance à la fois).
+Les menus, notifications et le tableau de bord sont en **français ou en anglais** selon la langue de Windows (réglable avec `language`).
 
-### Le tableau de bord
+Relancer l'exe alors qu'il tourne déjà ouvre simplement la fenêtre (une seule instance à la fois).
 
-**Aujourd'hui / Semaine / Mois** :
-- temps d'écran total, comparé à la même période précédente (hier à la même heure, la semaine dernière au même moment…) ;
-- anneau d'objectif (`daily_goal_hours`) : temps du jour, ou moyenne par jour pour la semaine/le mois ;
-- **bien-être** : nombre de pauses, plus longue période sans pause (alerte au-delà de 90 min), heure de début et de fin de journée, temps passé après 23 h ;
-- « Ta journée » : la frise de vos applications heure par heure, puis les minutes par heure (ou les heures par jour, avec la ligne d'objectif) ;
-- la liste des applications avec **leur vraie icône** (extraite de leur .exe).
+### La fenêtre
 
-**✨ Wrapped** (la semaine dernière par défaut, flèches pour naviguer) : votre « profil » de la semaine (Marathonien, Oiseau de nuit, Lève-tôt, Fidèle à Maya, Zen, Équilibré…), le temps total et l'évolution, l'app n°1, le top 5, le jour le plus chargé, l'heure de pointe, le record sans pause, les jours au-dessus de l'objectif.
+L'interface s'ouvre dans une **fenêtre d'application** (mode « app » de Microsoft Edge, présent sur tout Windows 10/11 : pas d'onglets, pas de barre d'adresse). Cela ne coûte rien quand la fenêtre est fermée et ne grossit pas l'exe. Si Edge est absent, la page s'ouvre dans le navigateur par défaut, à l'adresse `http://127.0.0.1:8765/`.
 
-La page se rafraîchit chaque minute ; la session en cours est écrite sur disque toutes les 60 s.
+- **Aujourd'hui / Semaine / Mois** :
+  - temps d'écran comparé à la même période précédente (hier à la même heure, etc.) ;
+  - anneau d'objectif ;
+  - frise de la journée et barres par heure ou par jour ;
+  - applications avec **leur vraie icône** et la variation par appli (« +1 h 20 », « −35 min ») ;
+  - **projets** (voir plus bas) ;
+  - **bien-être** : pauses, plus long sans pause, début et fin de journée, temps après 23 h ;
+  - **focus** : plus longue concentration sur une seule appli, changements d'appli par heure ;
+  - **limites par appli**.
+- **Année** : un calendrier (une case par jour, plus clair = plus de temps), la **série créative** 🔥 (jours d'affilée avec au moins 30 min sur vos apps créatives), la **série sous l'objectif** 🌿, le jour record et la moyenne.
+- **✨ Wrapped** : votre profil de la semaine (Marathonien, Oiseau de nuit, Lève-tôt, Fidèle à Maya, Concentration profonde, Zen, Équilibré…), le total et l'évolution, l'app n°1, le top 5, vos projets, ce qui a monté ou baissé, le jour le plus chargé et l'heure de pointe. Le bouton **Partager l'image** télécharge une image 1080×1350 prête pour les réseaux sociaux.
+- **Exporter en CSV** (en bas de page) : toutes les sessions (début, fin, minutes, appli, processus, projet), à ouvrir dans Excel.
+
+La page se rafraîchit chaque minute ; la session en cours est écrite sur disque toutes les 60 s, et immédiatement quand Windows s'éteint.
+
+### Notifications
+
+Notifications Windows natives, désactivables avec `notifications = false` :
+
+- **Pause** ☕ après `break_reminder_minutes` (60) sans vraie pause, puis à nouveau toutes les 60 min tant que vous n'en faites pas. Une pause de 5 min ou plus remet le compteur à zéro.
+- **Limite par appli** atteinte (`[app_limits]`), une fois par jour.
+- **Objectif du jour** atteint, une fois par jour.
+- **Wrapped prêt** ✨ au premier usage d'une nouvelle semaine ; un clic l'ouvre. Avec `wrapped_auto_open = true`, il s'ouvre directement.
+
+### Temps par projet (artistes 3D)
+
+Le titre de la fenêtre active est lu **uniquement** pour y trouver le nom d'un fichier de projet connu : `.mb .ma .blend .hip .hipnc .nk .aep .prproj .psd .spp .ztl .uproject .c4d .max .usd`… Seul le nom du fichier est enregistré (par exemple `robot_v03.mb`), jamais le reste du titre. Les fenêtres annexes (Script Editor, Hypershade, boîtes de dialogue) restent comptées sur la scène ouverte.
 
 ### Comment le temps est compté
 
@@ -60,9 +80,18 @@ Créé automatiquement à côté de l'exe au premier lancement. Modifiez-le puis
 | `idle_threshold_secs` | `180` | Secondes sans clavier/souris avant de considérer que vous êtes absent. |
 | `daily_goal_hours` | `8.0` | Objectif (ou limite) de temps d'écran par jour. `0` = pas d'objectif. |
 | `break_minutes` | `5` | Durée minimale d'un trou pour compter comme une pause. |
+| `notifications` | `true` | Active les notifications Windows. |
+| `break_reminder_minutes` | `60` | Rappel de pause après X min sans pause. `0` = jamais. |
+| `wrapped_auto_open` | `false` | `true` = le Wrapped s'ouvre tout seul en début de semaine (sinon : notification). |
+| `language` | `"auto"` | `"auto"` (langue de Windows), `"fr"` ou `"en"`. |
+| `focus_apps` | Maya, Blender, Houdini, ZBrush, Substance Painter, Photoshop, Nuke, After Effects, Premiere Pro, Unreal Engine, RenderMan | Vos apps créatives (noms affichés), pour la série 🔥. |
+| `streak_minutes` | `30` | Minutes minimum sur ces apps pour qu'un jour compte dans la série. |
 | `ignored_apps` | `["lockapp.exe"]` | Applications jamais enregistrées. |
 | `web_port` | `8765` | Port du tableau de bord (toujours sur `127.0.0.1`). |
+| `[app_limits]` | vide | Limite quotidienne en minutes par appli (nom affiché), ex. `"Discord" = 60`. |
 | `[friendly_names]` | liste intégrée | Nom affiché par processus. **Deux processus avec le même nom sont fusionnés.** Vos entrées s'ajoutent à la liste intégrée (Maya, Blender, Photoshop, Premiere Pro, After Effects, Houdini, ZBrush, Nuke, Substance Painter, Chrome…). |
+
+Un `config.toml` créé par une ancienne version reste valable : les nouvelles clés prennent leur valeur par défaut. Pour voir toutes les options commentées, renommez votre fichier puis relancez le traceur, qui en recrée un complet.
 
 Les anciennes clés `render_processes`, `render_cpu_threshold` et `three_d_apps` (version 0.1) sont simplement ignorées.
 
@@ -73,6 +102,11 @@ Exemple :
 ```toml
 idle_threshold_secs = 300
 daily_goal_hours = 7
+break_reminder_minutes = 75
+
+[app_limits]
+"Discord" = 60
+"Chrome" = 120
 
 [friendly_names]
 "houdinifx.exe" = "Houdini"
@@ -81,7 +115,7 @@ daily_goal_hours = 7
 
 ## Démarrage automatique avec Windows
 
-Le plus simple : clic droit sur l'icône → **Run at Windows startup**. Ou, depuis une invite de commandes dans le dossier de l'exe :
+Le plus simple : clic droit sur l'icône → **Lancer au démarrage de Windows**. Ou, depuis une invite de commandes dans le dossier de l'exe :
 
 ```
 activity-tracker.exe --install-autostart
@@ -109,7 +143,7 @@ activity-tracker.exe --debug-log
 activity-tracker.exe --selftest
 ```
 
-Fait tourner le collecteur 15 secondes (sur une base en mémoire, vos données ne sont pas touchées), puis affiche : application au premier plan détectée (nom et chemin), secondes d'inactivité, verrouillage, démarrage automatique, extraction d'icône, icônes de la zone de notification, mémoire (working set et pic) et temps CPU consommé. Code de sortie 0 si tout s'est bien passé.
+Fait tourner le collecteur 15 secondes sur une base en mémoire (vos données ne sont pas touchées), puis affiche :\n\n- l'application au premier plan (nom et chemin) et la scène ou le projet détecté ;\n- les secondes d'inactivité et l'état de verrouillage ;\n- la langue, le démarrage automatique et la présence d'Edge pour la fenêtre ;\n- l'extraction d'icône et les icônes de la zone de notification ;\n- la mémoire (working set et pic) et le temps CPU consommé. Code de sortie 0 si tout s'est bien passé.
 
 ### En cas de problème, envoyez-moi
 
@@ -129,12 +163,12 @@ Le résultat est `target\release\activity-tracker.exe`. Le code Win32 se trouve 
 
 | Fichier | Rôle |
 |---|---|
-| `src/collector.rs` | Machine d'états actif / inactif, création des sessions, écriture toutes les 60 s |
+| `src/collector.rs` | Machine d'états actif / inactif, sessions, projets, rappels de pause, limites, objectif, Wrapped |
 | `src/store.rs` | SQLite (WAL), une ligne par session |
-| `src/stats.rs` | Jour / semaine / mois, fusion des apps, bien-être, Wrapped |
+| `src/stats.rs` | Jour / semaine / mois / année, fusion des apps, projets, bien-être, focus, séries, Wrapped |\n| `src/project.rs` | Nom de la scène / du projet à partir du titre de fenêtre |\n| `src/notice.rs` | Textes des notifications et du menu (FR / EN) |
 | `src/png.rs` | Encodeur PNG minimal pour les icônes d'applications |
-| `src/server.rs` | Tableau de bord local (tiny_http, accept bloquant) |
+| `src/server.rs` | Tableau de bord local (tiny_http, accept bloquant), export CSV |
 | `src/config.rs` | `config.toml` |
 | `src/probe.rs` | Interface `SystemProbe` (+ sonde factice pour les tests) |
-| `src/win.rs` | Win32 : fenêtre au premier plan, inactivité, verrouillage, icônes des .exe, zone de notification, registre |
+| `src/win.rs` | Win32 : fenêtre au premier plan et titre, inactivité, verrouillage, icônes des .exe, zone de notification et notifications, fenêtre Edge, registre |
 | `assets/` | Page du tableau de bord, logo et icônes (intégrés dans l'exe via `build.rs`) |

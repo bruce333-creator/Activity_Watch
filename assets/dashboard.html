@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,284 +8,505 @@
 <style>
 :root {
   color-scheme: dark;
-  --bg: #0d0e12; --card: #15161c; --card-2: #1b1c24; --line: rgba(255,255,255,.07);
-  --text: #f1f0ee; --text-2: #b9b8c3; --muted: #7d7c88;
-  --accent: #8b7bff; --accent-2: #22d3ee; --good: #34c77b; --warn: #f5b041;
-  --grad: linear-gradient(135deg, #7c5cff 0%, #22d3ee 100%);
+  --bg: #161616; --card: #1c1c1c; --card-2: #232323; --line: #2a2a2a; --line-2: #333;
+  --text: #f2f2f2; --text-2: #a3a3a3; --muted: #6e6e6e;
+  --accent: #4d7cff; --good: #3ecf8e; --warn: #f0a33a;
+  --font: "Inter", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
 }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
-body { margin: 0; color: var(--text); font: 14px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  background: radial-gradient(900px 420px at 15% -10%, rgba(124,92,255,.16), transparent 70%),
-              radial-gradient(700px 380px at 95% 0%, rgba(34,211,238,.09), transparent 70%), var(--bg);
-  min-height: 100vh; }
-main { max-width: 1080px; margin: 0 auto; padding: 28px 16px 64px; }
-header { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 26px; }
-.brand { display: flex; align-items: center; gap: 12px; }
-.brand img { width: 36px; height: 36px; }
-.brand b { font-size: 17px; font-weight: 650; letter-spacing: -.01em; display: block; }
-.brand span { color: var(--muted); font-size: 12.5px; }
-nav { display: flex; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
-nav a { color: var(--text-2); text-decoration: none; padding: 7px 14px; border-radius: 9px; font-weight: 500; transition: background .15s, color .15s; white-space: nowrap; }
+body { margin: 0; color: var(--text); font: 14px/1.55 var(--font); -webkit-font-smoothing: antialiased; min-height: 100vh;
+  background:
+    linear-gradient(var(--bg) 0, transparent 10%, transparent 90%, var(--bg) 100%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.028) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.028) 0 1px, transparent 1px 64px), var(--bg);
+  background-attachment: fixed; }
+a { color: inherit; }
+main { max-width: 1100px; margin: 0 auto; padding: 0 16px 56px; }
+header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; height: 64px; margin-bottom: 28px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.brand img { width: 30px; height: 30px; }
+.brand b { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.brand small { color: var(--muted); font-size: 12px; margin-left: 4px; }
+nav { display: flex; gap: 4px; }
+nav a { color: var(--text-2); text-decoration: none; padding: 7px 14px; border-radius: 999px; font-weight: 500; border: 1px solid transparent; white-space: nowrap; transition: color .15s; }
 nav a:hover { color: var(--text); }
-nav a.on { background: var(--card-2); color: var(--text); box-shadow: 0 1px 0 rgba(255,255,255,.05) inset; }
-nav a.wr.on { background: var(--grad); color: #fff; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; }
-.label { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
-h2 { font-size: 15px; font-weight: 600; margin: 0 0 14px; }
-.row { display: grid; gap: 14px; margin-bottom: 14px; }
-.hero { grid-template-columns: 1.6fr 1fr; }
-.four { grid-template-columns: repeat(4, 1fr); }
-@media (max-width: 860px) { .hero { grid-template-columns: 1fr; } .four { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 520px) { nav a { padding: 7px 9px; } .big { font-size: 44px; } .tile .v { font-size: 20px; } }
-.big { font-size: 56px; font-weight: 700; letter-spacing: -.03em; line-height: 1.05; margin: 8px 0 12px; font-variant-numeric: tabular-nums; }
-.big small { font-size: 24px; color: var(--text-2); font-weight: 600; margin-left: 2px; }
-.chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600;
-  background: var(--card-2); color: var(--text-2); border: 1px solid var(--line); }
-.chip.up { color: #ffb38a; } .chip.down { color: #7fe0b0; }
-.sub { color: var(--text-2); font-size: 13px; margin-top: 10px; }
-.goal { display: flex; align-items: center; gap: 18px; }
+nav a.on { color: var(--text); border-color: var(--line-2); background: rgba(255,255,255,.03); }
+.head-right { justify-self: end; color: var(--muted); font-size: 13px; }
+@media (max-width: 820px) {
+  header { grid-template-columns: 1fr; height: auto; padding-top: 16px; }
+  nav { flex-wrap: wrap; } nav a { padding: 6px 11px; } .head-right { display: none; } .brand small { display: none; }
+}
+h1.title { font-size: clamp(30px, 5vw, 46px); font-weight: 600; letter-spacing: -.035em; line-height: 1.05; margin: 0 0 6px; }
+.lead { color: var(--text-2); margin: 0 0 26px; font-size: 15px; }
+h2 { font-size: 17px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 4px; }
+.hint-line { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+.label { color: var(--text-2); font-size: 13px; font-weight: 500; }
+.row { display: grid; gap: 12px; margin-bottom: 12px; }
+.c2 { grid-template-columns: 1.55fr 1fr; } .c3 { grid-template-columns: repeat(3, 1fr); } .c4 { grid-template-columns: repeat(4, 1fr); }
+.c2b { grid-template-columns: 1fr 1fr; }
+@media (max-width: 860px) { .c2, .c2b, .c3 { grid-template-columns: 1fr; } .c4 { grid-template-columns: 1fr 1fr; } }
+section.block { margin-top: 36px; }
+.big { font-size: clamp(44px, 7vw, 64px); font-weight: 600; letter-spacing: -.045em; line-height: 1; margin: 12px 0 14px; font-variant-numeric: tabular-nums; }
+.big small { font-size: .42em; color: var(--text-2); font-weight: 500; letter-spacing: -.01em; margin: 0 6px 0 2px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
+  color: var(--text-2); border: 1px solid var(--line-2); }
+.sub { color: var(--text-2); font-size: 13px; margin-top: 12px; }
+.goal { display: flex; align-items: center; gap: 20px; }
 .goal svg { flex: none; }
-.goal .v { font-size: 22px; font-weight: 700; }
-.tile .ico { font-size: 20px; }
-.tile .v { font-size: 24px; font-weight: 650; margin-top: 6px; font-variant-numeric: tabular-nums; }
-.tile .hint { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.goal .v { font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+.tile .v { font-size: 26px; font-weight: 600; letter-spacing: -.03em; margin: 8px 0 2px; font-variant-numeric: tabular-nums; }
+.tile .hint { color: var(--muted); font-size: 12.5px; }
 .tile .hint.warn { color: var(--warn); } .tile .hint.ok { color: var(--good); }
-.strip { position: relative; height: 34px; border-radius: 9px; background: var(--card-2); overflow: hidden; margin: 6px 0 4px; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; background: var(--muted); }
+.strip { position: relative; height: 30px; border-radius: 8px; background: var(--card-2); overflow: hidden; margin: 14px 0 4px; }
 .strip i { position: absolute; top: 0; bottom: 0; border-right: 1px solid var(--card); min-width: 2px; }
-.ticks { position: relative; height: 18px; color: var(--muted); font-size: 11px; margin-bottom: 18px; }
+.ticks { position: relative; height: 18px; color: var(--muted); font-size: 11px; margin-bottom: 12px; }
 .ticks span { position: absolute; transform: translateX(-50%); }
-.bars { display: flex; align-items: flex-end; gap: 4px; height: 170px; position: relative; padding-top: 6px; }
-.bars .b { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; min-width: 0; cursor: default; }
-.bars .b i { display: block; width: 100%; max-width: 34px; border-radius: 5px 5px 2px 2px; background: linear-gradient(180deg, #9d8cff, #6c5ce7); min-height: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--text-2); font-size: 12.5px; margin-bottom: 26px; }
+.legend b { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+.bars { display: flex; align-items: flex-end; gap: 4px; height: 160px; position: relative; margin-top: 14px; }
+.bars .b { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; min-width: 0; }
+.bars .b i { display: block; width: 100%; max-width: 30px; border-radius: 4px 4px 1px 1px; background: #d6d6d6; min-height: 2px; transition: background .15s; }
 .bars .b.zero i { background: var(--card-2); }
-.bars .b:hover i { filter: brightness(1.25); }
-.bars .b.over i { background: linear-gradient(180deg, #ffc46b, #e8902a); }
-.bars .goal-line { position: absolute; left: 0; right: 0; border-top: 1.5px dashed rgba(245,176,65,.55); pointer-events: none; }
-.bars .goal-line span { position: absolute; right: 0; top: -18px; font-size: 11px; color: var(--warn); }
-.xl { display: flex; gap: 4px; margin-top: 6px; color: var(--muted); font-size: 11px; }
+.bars .b.now i { background: var(--accent); }
+.bars .b.over i { background: var(--warn); }
+.bars .b:hover i { background: #fff; }
+.bars .goal-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(240,163,58,.6); pointer-events: none; }
+.bars .goal-line span { position: absolute; left: 0; top: -9px; font-size: 11px; line-height: 16px; color: var(--warn); background: var(--card); padding-right: 6px; }
+.xl { display: flex; gap: 4px; margin-top: 8px; color: var(--muted); font-size: 11px; }
 .xl span { flex: 1; text-align: center; min-width: 0; white-space: nowrap; }
-.apps { display: flex; flex-direction: column; gap: 4px; }
-.app { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 8px 6px; border-radius: 10px; }
-.app:hover { background: var(--card-2); }
-.app .name { font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
-.app .name span { color: var(--muted); font-weight: 500; font-size: 12.5px; }
-.app .track { height: 6px; background: var(--card-2); border-radius: 3px; margin-top: 6px; overflow: hidden; }
-.app .track i { display: block; height: 100%; border-radius: 3px; }
-.app .t { font-weight: 650; font-variant-numeric: tabular-nums; min-width: 64px; text-align: right; }
-.avatar { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 15px; overflow: hidden; }
-.avatar { position: relative; }
-.avatar img { position: absolute; width: 32px; height: 32px; }
-.empty { color: var(--muted); text-align: center; padding: 30px 0; }
-#tip { position: fixed; pointer-events: none; background: #23242e; border: 1px solid var(--line); color: var(--text); font-size: 12.5px;
-  padding: 6px 10px; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.4); opacity: 0; transition: opacity .1s; z-index: 10; white-space: nowrap; }
-.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--text-2); font-size: 12.5px; }
-.legend b { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 6px; }
-
+.list { display: flex; flex-direction: column; }
+.item { display: grid; grid-template-columns: 32px 1fr auto; gap: 14px; align-items: center; padding: 10px 4px; border-top: 1px solid var(--line); }
+.item:first-child { border-top: 0; }
+.item .name { font-weight: 500; display: flex; justify-content: space-between; gap: 10px; }
+.item .name em { font-style: normal; color: var(--muted); font-size: 12.5px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track { height: 4px; background: var(--card-2); border-radius: 2px; margin-top: 7px; overflow: hidden; }
+.track i { display: block; height: 100%; border-radius: 2px; background: #d6d6d6; }
+.track.limit i { background: var(--accent); } .track.limit.over i { background: var(--warn); }
+.item .t { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 76px; }
+.item .t small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); }
+.avatar { position: relative; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-weight: 600; color: #fff; font-size: 14px; }
+.avatar img { position: absolute; width: 28px; height: 28px; }
+.empty { color: var(--muted); text-align: center; padding: 28px 0; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 10px; font: 500 14px var(--font); cursor: pointer; text-decoration: none;
+  background: #ededed; color: #111; border: 1px solid #ededed; }
+.btn.ghost { background: transparent; color: var(--text); border-color: var(--line-2); }
+.btn:disabled { opacity: .35; cursor: default; }
+#tip { position: fixed; pointer-events: none; background: #262626; border: 1px solid var(--line-2); color: var(--text); font-size: 12.5px;
+  padding: 6px 10px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.45); opacity: 0; z-index: 10; white-space: nowrap; }
+/* Year */
+.heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 3px; overflow-x: auto; padding-bottom: 4px; }
+.heat i { width: 13px; height: 13px; border-radius: 3px; background: var(--card-2); }
+.heat i.l1 { background: #1e3473; } .heat i.l2 { background: #2b4dad; } .heat i.l3 { background: #3d68e0; } .heat i.l4 { background: #7fa0ff; }
+.heat i.future { background: transparent; }
+.months { display: grid; grid-auto-flow: column; gap: 3px; color: var(--muted); font-size: 11px; margin-bottom: 6px; overflow: hidden; }
+.months span { width: 13px; white-space: nowrap; }
+.scale { display: flex; align-items: center; gap: 3px; color: var(--muted); font-size: 11.5px; margin-top: 10px; justify-content: flex-end; }
+.scale i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.streak .v { font-size: 40px; font-weight: 600; letter-spacing: -.04em; }
 /* Wrapped */
-.w-hero { position: relative; overflow: hidden; border-radius: 24px; padding: 34px 30px; background: var(--grad); color: #fff; margin-bottom: 14px; }
-.w-hero::after { content: ""; position: absolute; inset: auto -80px -120px auto; width: 340px; height: 340px; border-radius: 50%; background: rgba(255,255,255,.12); }
-.w-hero .week { opacity: .85; font-weight: 600; }
-.w-hero .emoji { font-size: 64px; line-height: 1; margin: 18px 0 8px; }
-.w-hero h1 { font-size: 40px; margin: 0; letter-spacing: -.02em; }
-.w-hero p { font-size: 16px; margin: 6px 0 0; opacity: .92; max-width: 560px; }
-.w-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-.w-nav button { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 7px 14px; font: inherit; cursor: pointer; }
-.w-nav button:disabled { opacity: .35; cursor: default; }
-.three { grid-template-columns: repeat(3, 1fr); }
-@media (max-width: 860px) { .three { grid-template-columns: 1fr; } }
-.stat .v { font-size: 34px; font-weight: 700; letter-spacing: -.02em; margin: 6px 0 2px; }
-.stat .d { color: var(--text-2); }
-.top1 { display: flex; align-items: center; gap: 16px; margin-top: 10px; }
-.top1 .avatar { width: 64px; height: 64px; border-radius: 16px; font-size: 26px; }
+.w-nav { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.w-hero { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: 18px; padding: 44px 34px; margin-bottom: 12px;
+  background: radial-gradient(600px 300px at 85% 110%, rgba(77,124,255,.28), transparent 70%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 1px, transparent 1px 48px),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 1px, transparent 1px 48px), #121212; }
+.w-hero .emoji { font-size: 60px; line-height: 1; margin: 20px 0 14px; }
+.w-hero h1 { font-size: clamp(36px, 6vw, 58px); font-weight: 600; letter-spacing: -.045em; line-height: 1; margin: 0; }
+.w-hero p { font-size: 17px; color: var(--text-2); margin: 12px 0 0; max-width: 600px; }
+.stat .v { font-size: 34px; font-weight: 600; letter-spacing: -.04em; margin: 8px 0 6px; }
+.top1 { display: flex; align-items: center; gap: 16px; margin-top: 12px; }
+.top1 .avatar { width: 56px; height: 56px; border-radius: 14px; font-size: 22px; }
 .top1 .avatar img { width: 48px; height: 48px; }
-.rank { counter-reset: r; display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
-.rank > div { display: grid; grid-template-columns: 22px 34px 1fr auto; align-items: center; gap: 10px; }
-.rank > div::before { counter-increment: r; content: counter(r); color: var(--muted); font-weight: 700; }
+.move { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+.move .d { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; color: var(--muted); font-size: 12.5px; }
+footer a { color: var(--text-2); }
 </style>
 </head>
 <body>
 <main>
   <header>
-    <div class="brand"><img src="/logo.png" alt=""><div><b>Activity Tracker</b><span id="period">&nbsp;</span></div></div>
-    <nav>
-      <a href="#today">Aujourd'hui</a><a href="#week">Semaine</a><a href="#month">Mois</a><a href="#wrapped" class="wr">✨ Wrapped</a>
-    </nav>
+    <a class="brand" href="#today"><img src="/logo.png" alt=""><b>Activity Tracker</b><small>by Enzo Freminet</small></a>
+    <nav id="nav"></nav>
+    <div class="head-right" id="period"></div>
   </header>
   <div id="view"></div>
+  <footer>
+    <span id="foot-local"></span>
+    <span><a href="/api/export.csv" download id="foot-export"></a> · <span id="foot-version"></span> · ef tools</span>
+  </footer>
 </main>
 <div id="tip"></div>
 
 <script>
-const PALETTE = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9', '#e66767', '#2fa6b8'];
+// ---------------------------------------------------------------- i18n
+const I18N = {
+  fr: {
+    nav: { today: "Aujourd'hui", week: 'Semaine', month: 'Mois', year: 'Année', wrapped: 'Wrapped' },
+    titles: { today: "Aujourd'hui", week: 'Cette semaine', month: 'Ce mois-ci' },
+    lead: { today: "Ton temps d'écran, appli par appli.", week: 'Ta semaine en un coup d’œil.', month: 'Ton mois en un coup d’œil.' },
+    screen: "Temps d'écran", vs: { today: 'vs hier à la même heure', week: 'vs la semaine dernière', month: 'vs le mois dernier' },
+    noCompare: 'Pas encore de comparaison', same: 'Identique', avg: (a, n) => `Moyenne de <b>${a}</b> par jour sur ${n} jour${n > 1 ? 's' : ''}`,
+    goalToday: 'Objectif du jour', goalAvg: 'Moyenne vs objectif', noGoal: 'Aucun objectif défini',
+    goalOver: (g, x) => `Objectif de ${g} dépassé de ${x}`, goalLeft: (g, x) => `Encore ${x} avant l'objectif de ${g}`,
+    wellbeing: 'Bien-être', wellbeingHint: 'Des repères simples pour garder un bon rythme.',
+    breaks: 'Pauses', breaksHint: m => `trous d'au moins ${m} min`, longest: 'Plus long sans pause', longOk: 'Bon rythme',
+    longWarn: 'Une pause toutes les 60–90 min aide', day: 'Début → fin', dayRange: 'Plus tôt → plus tard', dayHint: 'premier et dernier usage',
+    night: 'Après 23 h', nightOk: 'Nuits préservées', nightWarn: 'Ton sommeil te remerciera',
+    focus: 'Focus', focusHint: 'Combien de temps tu restes concentré sur une même appli.',
+    deep: 'Plus longue concentration', deepHint: app => app ? `d'affilée sur ${app}` : 'sur une seule appli', switches: "Changements d'appli",
+    switchesHint: n => `${n} par heure d'activité`,
+    limits: 'Limites par appli', limitsHint: "Définies dans config.toml ([app_limits]). Une notification s'affiche quand une limite est atteinte.",
+    timeline: 'Ta journée', perHour: 'Minutes par heure', perDay: 'Heures par jour', goalWord: 'objectif',
+    apps: 'Applications', appsHint: { today: 'Variation vs hier à la même heure.', week: 'Variation vs la semaine dernière.', month: 'Variation vs le mois dernier.' },
+    projects: 'Projets', projectsHint: 'Scènes et fichiers ouverts (Maya, Blender, Houdini, After Effects, Premiere…), lus dans le titre de la fenêtre.',
+    empty: 'Rien d’enregistré pour l’instant. Le suivi tourne : reviens dans quelques minutes.', offline: 'Le traceur ne répond pas. Est-il lancé ?',
+    year: 'Ton année', yearLead: 'Chaque case est un jour. Plus elle est claire, plus tu as passé de temps sur ton PC.',
+    less: 'Moins', more: 'Plus', focusStreak: 'Série créative', focusStreakHint: (m, apps) => `jours d'affilée avec au moins ${m} min sur tes apps créatives (${apps})`,
+    goalStreak: 'Série sous l’objectif', goalStreakHint: g => `jours d'affilée sous ${g} d'écran`, best: b => `record : ${b} jour${b > 1 ? 's' : ''}`,
+    days: n => `${n} jour${n > 1 ? 's' : ''}`, yearTotal: 'Sur 12 mois', avgActive: 'Moyenne par jour actif', activeDays: n => `${n} jours actifs`, bestDay: 'Jour record',
+    wrapped: 'Wrapped', thisWeek: 'Cette semaine (en cours)', lastWeek: 'La semaine dernière', weeksAgo: n => `Il y a ${n} semaines`,
+    prevWeek: '‹ Précédente', nextWeek: 'Suivante ›', share: "Partager l'image", yourWrapped: 'Ton Wrapped',
+    total: 'Temps total', vsPrevWeek: 'vs la semaine d’avant', activeLine: (n, a) => `${n} jour${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''} · ${a} par jour actif`,
+    top1: 'App n°1', ofWeek: p => `${p} % de ta semaine`, busiest: 'Jour le plus chargé', top5: 'Ton top 5', topProjects: 'Tes projets',
+    used: n => `${n} application${n > 1 ? 's' : ''} utilisée${n > 1 ? 's' : ''}`, byDay: 'Jour par jour', peak: 'Heure de pointe',
+    record: 'Record sans pause', overGoal: "Jours au-dessus de l'objectif", movers: 'Ce qui a bougé', rise: 'En hausse', fall: 'En baisse',
+    noMove: 'Rien de notable par rapport à la semaine d’avant.', breaksNight: (b, n) => `${b} pauses · ${n} après 23 h`,
+    personas: {
+      off: ['Semaine off', () => 'Aucune activité enregistrée : profite !'],
+      night_owl: ['Oiseau de nuit', p => `${fmt(p.value)} passées entre 23 h et 5 h.`],
+      marathon: ['Marathonien', p => `Une session de ${fmt(p.value)} sans vraie pause.`],
+      early_bird: ['Lève-tôt', p => `Premier démarrage à ${clock(p.value)}.`],
+      loyal: [p => `Fidèle à ${p.app}`, p => `${p.value} % de ton temps sur ${p.app}.`],
+      deep_focus: ['Concentration profonde', p => `${fmt(p.value)} d'affilée sur ${p.app}, sans changer d'appli.`],
+      zen: ['Zen', p => `${p.value} pauses par jour en moyenne.`],
+      balanced: ['Équilibré', () => 'Une semaine bien répartie entre tes apps.'],
+    },
+    local: 'Tes données restent sur ce PC. Aucun envoi, aucune télémétrie.', export: 'Exporter en CSV',
+    locale: 'fr-FR', min: 'min', h: 'h', lessThanMin: '< 1 min',
+  },
+  en: {
+    nav: { today: 'Today', week: 'Week', month: 'Month', year: 'Year', wrapped: 'Wrapped' },
+    titles: { today: 'Today', week: 'This week', month: 'This month' },
+    lead: { today: 'Your screen time, app by app.', week: 'Your week at a glance.', month: 'Your month at a glance.' },
+    screen: 'Screen time', vs: { today: 'vs yesterday, same time', week: 'vs last week', month: 'vs last month' },
+    noCompare: 'Nothing to compare yet', same: 'Same as', avg: (a, n) => `Average of <b>${a}</b> a day over ${n} day${n > 1 ? 's' : ''}`,
+    goalToday: "Today's goal", goalAvg: 'Average vs goal', noGoal: 'No goal set',
+    goalOver: (g, x) => `${x} over your ${g} goal`, goalLeft: (g, x) => `${x} left before your ${g} goal`,
+    wellbeing: 'Wellbeing', wellbeingHint: 'Simple markers to keep a healthy rhythm.',
+    breaks: 'Breaks', breaksHint: m => `gaps of at least ${m} min`, longest: 'Longest without a break', longOk: 'Good rhythm',
+    longWarn: 'A break every 60–90 min helps', day: 'Start → end', dayRange: 'Earliest → latest', dayHint: 'first and last use',
+    night: 'After 11 pm', nightOk: 'Nights protected', nightWarn: 'Your sleep will thank you',
+    focus: 'Focus', focusHint: 'How long you stay focused on a single app.',
+    deep: 'Longest focus', deepHint: app => app ? `straight in ${app}` : 'in a single app', switches: 'App switches',
+    switchesHint: n => `${n} per active hour`,
+    limits: 'App limits', limitsHint: 'Set in config.toml ([app_limits]). You get a notification when a limit is reached.',
+    timeline: 'Your day', perHour: 'Minutes per hour', perDay: 'Hours per day', goalWord: 'goal',
+    apps: 'Apps', appsHint: { today: 'Change vs yesterday, same time.', week: 'Change vs last week.', month: 'Change vs last month.' },
+    projects: 'Projects', projectsHint: 'Open scenes and files (Maya, Blender, Houdini, After Effects, Premiere…), read from the window title.',
+    empty: 'Nothing recorded yet. Tracking is running: come back in a few minutes.', offline: 'The tracker is not responding. Is it running?',
+    year: 'Your year', yearLead: 'Each square is a day. The lighter it is, the more time you spent on your PC.',
+    less: 'Less', more: 'More', focusStreak: 'Creative streak', focusStreakHint: (m, apps) => `days in a row with at least ${m} min in your creative apps (${apps})`,
+    goalStreak: 'Under-goal streak', goalStreakHint: g => `days in a row under ${g} of screen time`, best: b => `best: ${b} day${b > 1 ? 's' : ''}`,
+    days: n => `${n} day${n > 1 ? 's' : ''}`, yearTotal: 'Last 12 months', avgActive: 'Average per active day', activeDays: n => `${n} active days`, bestDay: 'Record day',
+    wrapped: 'Wrapped', thisWeek: 'This week (so far)', lastWeek: 'Last week', weeksAgo: n => `${n} weeks ago`,
+    prevWeek: '‹ Previous', nextWeek: 'Next ›', share: 'Share image', yourWrapped: 'Your Wrapped',
+    total: 'Total time', vsPrevWeek: 'vs the week before', activeLine: (n, a) => `${n} active day${n > 1 ? 's' : ''} · ${a} per active day`,
+    top1: 'Top app', ofWeek: p => `${p}% of your week`, busiest: 'Busiest day', top5: 'Your top 5', topProjects: 'Your projects',
+    used: n => `${n} app${n > 1 ? 's' : ''} used`, byDay: 'Day by day', peak: 'Peak hour',
+    record: 'Longest without a break', overGoal: 'Days over goal', movers: 'What changed', rise: 'Up', fall: 'Down',
+    noMove: 'Nothing notable compared to the week before.', breaksNight: (b, n) => `${b} breaks · ${n} after 11 pm`,
+    personas: {
+      off: ['Week off', () => 'Nothing recorded. Enjoy!'],
+      night_owl: ['Night owl', p => `${fmt(p.value)} between 11 pm and 5 am.`],
+      marathon: ['Marathoner', p => `One ${fmt(p.value)} session without a real break.`],
+      early_bird: ['Early bird', p => `First start at ${clock(p.value)}.`],
+      loyal: [p => `Loyal to ${p.app}`, p => `${p.value}% of your time in ${p.app}.`],
+      deep_focus: ['Deep focus', p => `${fmt(p.value)} straight in ${p.app}, without switching.`],
+      zen: ['Zen', p => `${p.value} breaks a day on average.`],
+      balanced: ['Balanced', () => 'A well-balanced week across your apps.'],
+    },
+    local: 'Your data stays on this PC. Nothing is sent, no telemetry.', export: 'Export CSV',
+    locale: 'en-GB', min: 'min', h: 'h', lessThanMin: '< 1 min',
+  },
+};
+let T = I18N.en, CONF = {};
+
+// ---------------------------------------------------------------- helpers
+const PALETTE = ['#4d7cff', '#e8774a', '#3ecf8e', '#d9a520', '#d6649a', '#9b8cff', '#ef6b6b', '#37b3c8'];
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
 function fmt(s) {
-  s = Math.round(s || 0);
-  if (s < 60) return s > 0 ? '< 1 min' : '0 min';
+  s = Math.round(Math.abs(s || 0));
+  if (s < 60) return s > 0 ? T.lessThanMin : `0 ${T.min}`;
   const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
-  return h ? `${h} h ${String(m).padStart(2, '0')}` : `${m} min`;
+  return h ? `${h} h ${String(m).padStart(2, '0')}` : `${m} ${T.min}`;
 }
 function fmtBig(s) {
   const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
-  return h ? `${h}<small>h</small> ${String(m).padStart(2, '0')}<small>min</small>` : `${m}<small>min</small>`;
+  return h ? `${h}<small>h</small>${String(m).padStart(2, '0')}<small>${T.min}</small>` : `${m}<small>${T.min}</small>`;
 }
 const clock = t => t == null ? '–' : `${String(Math.floor(t / 3600) % 24).padStart(2, '0')}:${String(Math.floor(t % 3600 / 60)).padStart(2, '0')}`;
-const day = (label, opts) => new Date(label + 'T12:00').toLocaleDateString('fr-FR', opts);
-// Colors are given in order of time spent, so the top apps never share a color on a page.
+const day = (label, opts) => new Date(label + 'T12:00').toLocaleDateString(T.locale, opts);
 let colors = {};
-function setColors(apps) { colors = {}; apps.forEach((a, i) => colors[a.name] = PALETTE[i % PALETTE.length]); }
-const color = name => colors[name] || '#5b5a66';
+function setColors(names) { colors = {}; names.forEach((n, i) => colors[n] = PALETTE[i % PALETTE.length]); }
+const color = name => colors[name] || '#555';
 function avatar(a) {
-  // Real exe icon when available, colored initial otherwise.
+  // The app's real icon when available, its initial otherwise.
   return `<div class="avatar" style="background:${color(a.name)}"><img src="/icon/${encodeURIComponent(a.process)}" alt=""
-    onload="this.parentNode.style.background='transparent';this.nextSibling.remove()" onerror="this.remove()"><span>${esc(a.name[0] || '?').toUpperCase()}</span></div>`;
+    onload="this.parentNode.style.background='transparent';this.nextSibling.remove()" onerror="this.remove()"><span>${esc((a.name[0] || '?').toUpperCase())}</span></div>`;
 }
 function delta(cur, prev, what) {
-  if (!prev) return `<span class="chip">Pas encore de comparaison ${what}</span>`;
+  if (!prev) return `<span class="chip">${T.noCompare}</span>`;
   const p = Math.round(100 * (cur - prev) / prev);
   if (p === 0) return `<span class="chip">= ${what}</span>`;
-  return `<span class="chip ${p > 0 ? 'up' : 'down'}">${p > 0 ? '▲' : '▼'} ${Math.abs(p)} % ${what}</span>`;
+  return `<span class="chip">${p > 0 ? '↑' : '↓'} ${Math.abs(p)} % ${what}</span>`;
+}
+function change(a) {
+  const d = a.seconds - a.previous;
+  if (!a.previous && !a.seconds) return '';
+  if (Math.abs(d) < 60) return '<small>=</small>';
+  return `<small>${d > 0 ? '+' : '−'}${fmt(d)}</small>`;
 }
 function ring(value, goal) {
   const r = 46, c = 2 * Math.PI * r, f = goal ? Math.min(value / goal, 1) : 0, over = goal && value > goal;
-  return `<svg width="116" height="116" viewBox="0 0 116 116" aria-hidden="true">
-    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
-    <circle cx="58" cy="58" r="${r}" fill="none" stroke="#24252f" stroke-width="12"/>
-    <circle cx="58" cy="58" r="${r}" fill="none" stroke="${over ? '#f5b041' : 'url(#g)'}" stroke-width="12" stroke-linecap="round"
+  return `<svg width="112" height="112" viewBox="0 0 116 116" aria-hidden="true">
+    <circle cx="58" cy="58" r="${r}" fill="none" stroke="#2a2a2a" stroke-width="10"/>
+    <circle cx="58" cy="58" r="${r}" fill="none" stroke="${over ? '#f0a33a' : '#f2f2f2'}" stroke-width="10" stroke-linecap="round"
       stroke-dasharray="${c * f} ${c}" transform="rotate(-90 58 58)"/>
-    <text x="58" y="64" text-anchor="middle" fill="#f1f0ee" font-size="20" font-weight="700">${goal ? Math.round(100 * value / goal) : 0}%</text></svg>`;
+    <text x="58" y="64" text-anchor="middle" fill="#f2f2f2" font-size="19" font-weight="600" font-family="Segoe UI, sans-serif">${goal ? Math.round(100 * value / goal) : 0}%</text></svg>`;
 }
-// Bars with hover tooltips. items: [{label, tip, value}], unit for the scale.
+// Bars with hover tooltips. items: [{label, tip, value, now}]
 function bars(items, goal) {
   const max = Math.max(1, goal || 0, ...items.map(i => i.value)) * 1.08;
-  const line = goal ? `<div class="goal-line" style="bottom:${100 * goal / max}%"><span>objectif</span></div>` : '';
-  return `<div class="bars">${line}${items.map(i => `<div class="b ${i.value ? '' : 'zero'} ${goal && i.value > goal ? 'over' : ''}" data-tip="${esc(i.tip)}">
+  const line = goal ? `<div class="goal-line" style="bottom:${100 * goal / max}%"><span>${T.goalWord}</span></div>` : '';
+  return `<div class="bars">${line}${items.map(i => `<div class="b ${i.value ? '' : 'zero'} ${goal && i.value > goal ? 'over' : ''} ${i.now ? 'now' : ''}" data-tip="${esc(i.tip)}">
     <i style="height:${Math.max(1.5, 100 * i.value / max)}%"></i></div>`).join('')}</div>
     <div class="xl">${items.map(i => `<span>${esc(i.label)}</span>`).join('')}</div>`;
 }
 function appList(apps, total) {
-  if (!apps.length) return '<div class="empty">Aucune activité pour cette période.</div>';
-  const max = apps[0].seconds;
-  return `<div class="apps">${apps.map(a => `<div class="app">${avatar(a)}
-    <div><div class="name">${esc(a.name)}<span>${total ? Math.round(100 * a.seconds / total) : 0} %</span></div>
+  const shown = apps.filter(a => a.seconds > 0);
+  if (!shown.length) return `<div class="empty">${T.empty}</div>`;
+  const max = shown[0].seconds;
+  return `<div class="list">${shown.map(a => `<div class="item">${avatar(a)}
+    <div><div class="name">${esc(a.name)}<em>${total ? Math.round(100 * a.seconds / total) : 0} %</em></div>
     <div class="track"><i style="width:${100 * a.seconds / max}%;background:${color(a.name)}"></i></div></div>
-    <div class="t">${fmt(a.seconds)}</div></div>`).join('')}</div>`;
+    <div class="t">${fmt(a.seconds)}${change(a)}</div></div>`).join('')}</div>`;
 }
+function projectList(projects) {
+  const max = projects[0].seconds;
+  return `<div class="list">${projects.map(p => `<div class="item">${avatar({ name: p.app, process: p.process })}
+    <div><div class="name">${esc(p.name)}<em>${esc(p.app)}</em></div><div class="track"><i style="width:${100 * p.seconds / max}%"></i></div></div>
+    <div class="t">${fmt(p.seconds)}</div></div>`).join('')}</div>`;
+}
+const getJSON = async url => (await fetch(url)).json();
+const tile = (label, value, hint, cls = '') => `<div class="card tile"><div class="label">${label}</div><div class="v">${value}</div><div class="hint ${cls}">${hint}</div></div>`;
 
-async function getJSON(url) { const r = await fetch(url); return r.json(); }
-
+// ---------------------------------------------------------------- today / week / month
 async function showRange(range) {
   const d = await getJSON('/api/summary?range=' + range);
-  setColors(d.apps);
-  $('#period').textContent = d.from === d.to ? day(d.from, { weekday: 'long', day: 'numeric', month: 'long' })
-    : `${day(d.from, { day: 'numeric', month: 'short' })} → ${day(d.to, { day: 'numeric', month: 'short' })}`;
-  const w = d.wellbeing, today = range === 'today';
-  const avg = d.total / Math.max(1, d.days_elapsed);
-  const vs = { today: "vs hier à la même heure", week: 'vs la semaine dernière', month: 'vs le mois dernier' }[range];
-  const ringVal = today ? d.total : avg;
-  const goalText = !d.goal ? 'Aucun objectif défini' : ringVal > d.goal
-    ? `Objectif de ${fmt(d.goal)} dépassé de ${fmt(ringVal - d.goal)}` : `Encore ${fmt(d.goal - ringVal)} avant l'objectif de ${fmt(d.goal)}`;
+  setColors(d.apps.map(a => a.name));
+  const today = range === 'today', w = d.wellbeing, f = d.focus;
+  $('#period').textContent = today ? day(d.from, { weekday: 'long', day: 'numeric', month: 'long' })
+    : `${day(d.from, { day: 'numeric', month: 'short' })} – ${day(d.to, { day: 'numeric', month: 'short' })}`;
+  const avg = d.total / Math.max(1, d.days_elapsed), ringVal = today ? d.total : avg;
+  const goalText = !d.goal ? T.noGoal : ringVal > d.goal ? T.goalOver(fmt(d.goal), fmt(ringVal - d.goal)) : T.goalLeft(fmt(d.goal), fmt(d.goal - ringVal));
   const longOk = w.longest_stretch <= 90 * 60;
 
   let timeline;
   if (today) {
-    const segs = d.segments;
+    const segs = d.segments, nowH = new Date().getHours();
     const first = segs.length ? segs[0].start : 9 * 3600, last = segs.length ? segs[segs.length - 1].end : 18 * 3600;
     const h0 = Math.min(8, Math.floor(first / 3600)), h1 = Math.max(20, Math.ceil(last / 3600));
     const span = (h1 - h0) * 3600, x = t => 100 * (t - h0 * 3600) / span;
     const names = [...new Set(segs.map(s => s.name))];
     const ticks = []; for (let h = h0; h <= h1; h += (h1 - h0 > 14 ? 3 : 2)) ticks.push(h);
-    timeline = `<h2>Ta journée</h2>
+    timeline = `<h2>${T.timeline}</h2>
       <div class="strip">${segs.map(s => `<i data-tip="${esc(s.name)} · ${clock(s.start)}–${clock(s.end)} · ${fmt(s.end - s.start)}"
         style="left:${x(s.start)}%;width:${x(s.end) - x(s.start)}%;background:${color(s.name)}"></i>`).join('')}</div>
       <div class="ticks">${ticks.map(h => `<span style="left:${x(h * 3600)}%">${h % 24}h</span>`).join('')}</div>
-      <div class="legend" style="margin-bottom:22px">${names.slice(0, 10).map(n => `<span><b style="background:${color(n)}"></b>${esc(n)}</span>`).join('')}</div>
-      <h2>Minutes par heure</h2>
-      ${bars(d.timeline.map((b, i) => ({ label: i % 3 ? '' : b.label, tip: `${b.label} · ${fmt(b.seconds)}`, value: b.seconds / 60 })))}`;
+      <div class="legend">${names.slice(0, 10).map(n => `<span><b style="background:${color(n)}"></b>${esc(n)}</span>`).join('')}</div>
+      <h2>${T.perHour}</h2>
+      ${bars(d.timeline.map((b, i) => ({ label: i % 3 ? '' : b.label, tip: `${b.label} · ${fmt(b.seconds)}`, value: b.seconds / 60, now: i === nowH })))}`;
   } else {
-    const opts = range === 'week' ? { weekday: 'short' } : { day: 'numeric' };
-    timeline = `<h2>Heures par jour</h2>${bars(d.timeline.map(b => ({ label: day(b.label, opts),
+    const opts = range === 'week' ? { weekday: 'short' } : { day: 'numeric' }, todayStr = new Date().toLocaleDateString('sv-SE');
+    timeline = `<h2>${T.perDay}</h2>${bars(d.timeline.map(b => ({ label: day(b.label, opts), now: b.label === todayStr,
       tip: `${day(b.label, { weekday: 'long', day: 'numeric', month: 'long' })} · ${fmt(b.seconds)}`, value: b.seconds / 3600 })), d.goal / 3600)}`;
   }
 
   $('#view').innerHTML = `
-  <section class="row hero">
-    <div class="card"><div class="label">${today ? "Temps d'écran aujourd'hui" : `Temps d'écran ${range === 'week' ? 'cette semaine' : 'ce mois-ci'}`}</div>
-      <div class="big">${fmtBig(d.total)}</div>${delta(d.total, d.previous_total, vs)}
-      ${today ? '' : `<div class="sub">Moyenne : <b>${fmt(avg)}</b> par jour sur ${d.days_elapsed} jour${d.days_elapsed > 1 ? 's' : ''}</div>`}</div>
-    <div class="card goal">${ring(ringVal, d.goal)}<div><div class="label">${today ? 'Objectif du jour' : 'Moyenne vs objectif'}</div>
+  <h1 class="title">${T.titles[range]}</h1><p class="lead">${T.lead[range]}</p>
+  <div class="row c2">
+    <div class="card"><div class="label">${T.screen}</div><div class="big">${fmtBig(d.total)}</div>${delta(d.total, d.previous_total, T.vs[range])}
+      ${today ? '' : `<div class="sub">${T.avg(fmt(avg), d.days_elapsed)}</div>`}</div>
+    <div class="card goal">${ring(ringVal, d.goal)}<div><div class="label">${today ? T.goalToday : T.goalAvg}</div>
       <div class="v">${fmt(ringVal)}</div><div class="sub" style="margin-top:2px">${goalText}</div></div></div>
-  </section>
-  <section class="row four">
-    <div class="card tile"><div class="ico">☕</div><div class="label">Pauses</div><div class="v">${w.breaks}</div>
-      <div class="hint">d'au moins quelques minutes</div></div>
-    <div class="card tile"><div class="ico">⏱️</div><div class="label">Plus long sans pause</div><div class="v">${fmt(w.longest_stretch)}</div>
-      <div class="hint ${w.longest_stretch ? (longOk ? 'ok' : 'warn') : ''}">${!w.longest_stretch ? '–' : longOk ? 'Bon rythme 👍' : 'Pense à une pause toutes les 60–90 min'}</div></div>
-    <div class="card tile"><div class="ico">🌅</div><div class="label">${today ? 'Journée' : 'Plus tôt → plus tard'}</div>
-      <div class="v">${clock(w.first_start)} → ${clock(w.last_end)}</div><div class="hint">premier et dernier usage</div></div>
-    <div class="card tile"><div class="ico">🌙</div><div class="label">Après 23 h</div><div class="v">${fmt(w.late_night)}</div>
-      <div class="hint ${w.late_night > 1800 ? 'warn' : 'ok'}">${w.late_night > 1800 ? 'Ton sommeil te remerciera 😴' : 'Nuits préservées'}</div></div>
-  </section>
-  <section class="card" style="margin-bottom:14px">${timeline}</section>
-  <section class="card"><h2>Applications</h2>${appList(d.apps, d.total)}</section>`;
+  </div>
+  <div class="card" style="margin-bottom:12px">${timeline}</div>
+  <div class="row ${d.projects.length ? 'c2b' : ''}">
+    <div class="card"><h2>${T.apps}</h2><p class="hint-line">${T.appsHint[range]}</p>${appList(d.apps, d.total)}</div>
+    ${d.projects.length ? `<div class="card"><h2>${T.projects}</h2><p class="hint-line">${T.projectsHint}</p>${projectList(d.projects)}</div>` : ''}
+  </div>
+  <section class="block"><h2>${T.wellbeing}</h2><p class="hint-line">${T.wellbeingHint}</p>
+  <div class="row c4">
+    ${tile(T.breaks, w.breaks, T.breaksHint(CONF.break_minutes || 5))}
+    ${tile(T.longest, fmt(w.longest_stretch), !w.longest_stretch ? '–' : longOk ? T.longOk : T.longWarn, w.longest_stretch ? (longOk ? 'ok' : 'warn') : '')}
+    ${tile(today ? T.day : T.dayRange, `${clock(w.first_start)} → ${clock(w.last_end)}`, T.dayHint)}
+    ${tile(T.night, fmt(w.late_night), w.late_night > 1800 ? T.nightWarn : T.nightOk, w.late_night > 1800 ? 'warn' : 'ok')}
+  </div></section>
+  <section class="block"><h2>${T.focus}</h2><p class="hint-line">${T.focusHint}</p>
+  <div class="row ${d.limits.length ? 'c3' : 'c2b'}">
+    ${tile(T.deep, fmt(f.longest), T.deepHint(f.longest_app ? esc(f.longest_app) : ''))}
+    ${tile(T.switches, f.switches, T.switchesHint(f.switches_per_hour))}
+    ${d.limits.length ? `<div class="card"><div class="label">${T.limits}</div>${d.limits.map(l => `<div style="margin-top:12px">
+      <div class="name" style="display:flex;justify-content:space-between"><span>${esc(l.name)}</span><span style="color:var(--text-2)">${fmt(l.seconds)} / ${fmt(l.limit)}</span></div>
+      <div class="track limit ${l.seconds >= l.limit ? 'over' : ''}"><i style="width:${Math.min(100, 100 * l.seconds / l.limit)}%"></i></div></div>`).join('')}
+      <div class="hint" style="margin-top:10px;color:var(--muted);font-size:12px">${T.limitsHint}</div></div>` : ''}
+  </div></section>`;
 }
 
-let weeksAgo = 1;
-async function showWrapped() {
-  const d = await getJSON('/api/wrapped?weeks_ago=' + weeksAgo);
-  setColors(d.top_apps);
-  const w = d.wellbeing, top = d.top_apps[0];
-  const title = weeksAgo === 0 ? 'Cette semaine (en cours)' : weeksAgo === 1 ? 'La semaine dernière' : `Il y a ${weeksAgo} semaines`;
-  $('#period').textContent = `${day(d.from, { day: 'numeric', month: 'short' })} → ${day(d.to, { day: 'numeric', month: 'short' })}`;
-  const peak = d.peak_hour == null ? '–' : `${d.peak_hour}h – ${d.peak_hour + 1}h`;
+// ---------------------------------------------------------------- year
+async function showYear() {
+  const y = await getJSON('/api/year');
+  $('#period').textContent = T.yearTotal;
+  const max = Math.max(...y.days, 1), q = s => !s ? 0 : s < max * .25 ? 1 : s < max * .5 ? 2 : s < max * .75 ? 3 : 4;
+  const start = new Date(y.from + 'T12:00'), cells = [], months = [];
+  const total = Math.ceil(y.days.length / 7) * 7;
+  for (let i = 0; i < total; i++) {
+    const dt = new Date(start); dt.setDate(start.getDate() + i);
+    const label = dt.toLocaleDateString(T.locale, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    cells.push(i < y.days.length ? `<i class="l${q(y.days[i])}" data-tip="${esc(label)} · ${fmt(y.days[i])}"></i>` : '<i class="future"></i>');
+    if (i % 7 === 0) months.push(dt.getDate() <= 7 ? `<span>${dt.toLocaleDateString(T.locale, { month: 'short' })}</span>` : '<span></span>');
+  }
+  const fs = y.focus_streak, gs = y.goal_streak;
   $('#view').innerHTML = `
-  <div class="w-nav"><button id="prev">‹ Semaine précédente</button><b>${title}</b>
-    <button id="next" ${weeksAgo === 0 ? 'disabled' : ''}>Semaine suivante ›</button></div>
+  <h1 class="title">${T.year}</h1><p class="lead">${T.yearLead}</p>
+  <div class="card" style="margin-bottom:12px"><div class="months" style="grid-template-columns:repeat(${total / 7},13px)">${months.join('')}</div>
+    <div class="heat">${cells.join('')}</div>
+    <div class="scale">${T.less} <i style="background:var(--card-2)"></i><i style="background:#1e3473"></i><i style="background:#2b4dad"></i><i style="background:#3d68e0"></i><i style="background:#7fa0ff"></i> ${T.more}</div></div>
+  <div class="row c2b">
+    <div class="card streak"><div class="label">🔥 ${T.focusStreak}</div><div class="v">${T.days(fs.current)}</div>
+      <div class="sub">${T.focusStreakHint(y.streak_minutes, esc(y.focus_apps.slice(0, 4).join(', ') + (y.focus_apps.length > 4 ? '…' : '')))} · ${T.best(fs.best)}</div></div>
+    <div class="card streak"><div class="label">🌿 ${T.goalStreak}</div><div class="v">${y.goal ? T.days(gs.current) : '–'}</div>
+      <div class="sub">${y.goal ? `${T.goalStreakHint(fmt(y.goal))} · ${T.best(gs.best)}` : T.noGoal}</div></div>
+  </div>
+  <div class="row c3">
+    ${tile(T.yearTotal, fmt(y.total), T.activeDays(y.active_days))}
+    ${tile(T.bestDay, y.best_day ? fmt(y.best_day.seconds) : '–', y.best_day ? day(y.best_day.label, { weekday: 'long', day: 'numeric', month: 'long' }) : '')}
+    ${tile(T.avgActive, fmt(y.total / Math.max(1, y.active_days)), T.activeDays(y.active_days))}
+  </div>`;
+}
+
+// ---------------------------------------------------------------- wrapped
+let weeksAgo = 1, lastWrapped = null;
+function personaText(p) {
+  const [title, text] = T.personas[p.kind] || T.personas.balanced;
+  return [typeof title === 'function' ? title(p) : title, text(p)];
+}
+async function showWrapped() {
+  const d = lastWrapped = await getJSON('/api/wrapped?weeks_ago=' + weeksAgo);
+  setColors(d.top_apps.map(a => a.name));
+  const w = d.wellbeing, top = d.top_apps[0], [ptitle, ptext] = personaText(d.persona);
+  const name = weeksAgo === 0 ? T.thisWeek : weeksAgo === 1 ? T.lastWeek : T.weeksAgo(weeksAgo);
+  const range = `${day(d.from, { day: 'numeric', month: 'long' })} – ${day(d.to, { day: 'numeric', month: 'long' })}`;
+  $('#period').textContent = range;
+  const mover = (a, cls) => a ? `<div class="move">${avatar(a)}<b>${esc(a.name)}</b><span class="d">${a.seconds > a.previous ? '+' : '−'}${fmt(a.seconds - a.previous)}</span></div>` : '';
+  $('#view').innerHTML = `
+  <div class="w-nav"><button class="btn ghost" id="prev">${T.prevWeek}</button><b>${name}</b>
+    <span style="display:flex;gap:8px"><button class="btn ghost" id="next" ${weeksAgo === 0 ? 'disabled' : ''}>${T.nextWeek}</button>
+    <button class="btn" id="share">${T.share}</button></span></div>
   <section class="w-hero">
-    <div class="week">Ton Wrapped · ${day(d.from, { day: 'numeric', month: 'long' })} – ${day(d.to, { day: 'numeric', month: 'long' })}</div>
-    <div class="emoji">${d.persona.emoji}</div><h1>${esc(d.persona.title)}</h1><p>${esc(d.persona.text)}</p>
+    <div class="label">${T.yourWrapped} · ${range}</div>
+    <div class="emoji">${d.persona.emoji}</div><h1>${esc(ptitle)}</h1><p>${esc(ptext)}</p>
   </section>
-  <section class="row three">
-    <div class="card stat"><div class="label">Temps total</div><div class="v">${fmt(d.total)}</div>
-      ${delta(d.total, d.previous_total, 'vs la semaine d’avant')}
-      <div class="sub">${d.active_days} jour${d.active_days > 1 ? 's' : ''} actif${d.active_days > 1 ? 's' : ''} · ${fmt(d.total / Math.max(1, d.active_days))} / jour actif</div></div>
-    <div class="card stat"><div class="label">App n°1</div>
-      ${top ? `<div class="top1">${avatar(top)}<div><div class="v" style="font-size:26px">${esc(top.name)}</div>
-        <div class="d">${fmt(top.seconds)} · ${Math.round(100 * top.seconds / d.total)} % de ta semaine</div></div></div>` : '<div class="v">–</div>'}</div>
-    <div class="card stat"><div class="label">Jour le plus chargé</div>
-      <div class="v">${d.busiest_day ? day(d.busiest_day.label, { weekday: 'long' }) : '–'}</div>
-      <div class="d">${d.busiest_day ? fmt(d.busiest_day.seconds) : ''}</div></div>
-  </section>
-  <section class="row" style="grid-template-columns: 1.2fr 1fr">
-    <div class="card"><h2>Ton top 5</h2>${d.top_apps.length ? `<div class="rank">${d.top_apps.map(a =>
-      `<div>${avatar(a)}<b>${esc(a.name)}</b><span class="d">${fmt(a.seconds)}</span></div>`).join('')}</div>` : '<div class="empty">Rien cette semaine.</div>'}
-      <div class="sub">${d.app_count} application${d.app_count > 1 ? 's' : ''} utilisée${d.app_count > 1 ? 's' : ''} au total</div></div>
-    <div class="card"><h2>Ta semaine jour par jour</h2>${bars(d.days.map(b => ({ label: day(b.label, { weekday: 'short' }),
+  <div class="row c3">
+    <div class="card stat"><div class="label">${T.total}</div><div class="v">${fmt(d.total)}</div>${delta(d.total, d.previous_total, T.vsPrevWeek)}
+      <div class="sub">${T.activeLine(d.active_days, fmt(d.total / Math.max(1, d.active_days)))}</div></div>
+    <div class="card stat"><div class="label">${T.top1}</div>
+      ${top ? `<div class="top1">${avatar(top)}<div><div class="v" style="font-size:26px;margin:0">${esc(top.name)}</div>
+        <div class="sub" style="margin:2px 0 0">${fmt(top.seconds)} · ${T.ofWeek(Math.round(100 * top.seconds / d.total))}</div></div></div>` : '<div class="v">–</div>'}</div>
+    <div class="card stat"><div class="label">${T.busiest}</div>
+      <div class="v" style="text-transform:capitalize">${d.busiest_day ? day(d.busiest_day.label, { weekday: 'long' }) : '–'}</div>
+      <div class="sub">${d.busiest_day ? fmt(d.busiest_day.seconds) : ''}</div></div>
+  </div>
+  <div class="row c2b">
+    <div class="card"><h2>${T.top5}</h2><p class="hint-line">${T.used(d.app_count)}</p>${appList(d.top_apps, d.total)}</div>
+    <div class="card"><h2>${T.byDay}</h2>${bars(d.days.map(b => ({ label: day(b.label, { weekday: 'short' }),
       tip: `${day(b.label, { weekday: 'long' })} · ${fmt(b.seconds)}`, value: b.seconds / 3600 })), d.goal / 3600)}</div>
-  </section>
-  <section class="row four">
-    <div class="card tile"><div class="ico">⚡</div><div class="label">Heure de pointe</div><div class="v">${peak}</div></div>
-    <div class="card tile"><div class="ico">⏱️</div><div class="label">Record sans pause</div><div class="v">${fmt(w.longest_stretch)}</div></div>
-    <div class="card tile"><div class="ico">🌅</div><div class="label">Plus tôt → plus tard</div><div class="v">${clock(w.first_start)} → ${clock(w.last_end)}</div></div>
-    <div class="card tile"><div class="ico">🎯</div><div class="label">Jours au-dessus de l'objectif</div><div class="v">${d.days_over_goal} / 7</div>
-      <div class="hint">${w.breaks} pauses · ${fmt(w.late_night)} après 23 h</div></div>
-  </section>`;
+  </div>
+  <div class="row ${d.top_projects.length ? 'c2b' : ''}">
+    <div class="card"><h2>${T.movers}</h2>${d.rise || d.fall ? `${d.rise ? `<div class="label" style="margin-top:10px">↑ ${T.rise}</div>${mover(d.rise)}` : ''}
+      ${d.fall ? `<div class="label" style="margin-top:10px">↓ ${T.fall}</div>${mover(d.fall)}` : ''}` : `<div class="empty">${T.noMove}</div>`}</div>
+    ${d.top_projects.length ? `<div class="card"><h2>${T.topProjects}</h2>${projectList(d.top_projects)}</div>` : ''}
+  </div>
+  <div class="row c4">
+    ${tile(T.peak, d.peak_hour == null ? '–' : `${d.peak_hour}h – ${d.peak_hour + 1}h`, '')}
+    ${tile(T.record, fmt(w.longest_stretch), '')}
+    ${tile(T.dayRange, `${clock(w.first_start)} → ${clock(w.last_end)}`, '')}
+    ${tile(T.overGoal, `${d.days_over_goal} / 7`, T.breaksNight(w.breaks, fmt(w.late_night)))}
+  </div>`;
   $('#prev').onclick = () => { weeksAgo++; showWrapped(); };
   $('#next').onclick = () => { if (weeksAgo > 0) { weeksAgo--; showWrapped(); } };
+  $('#share').onclick = shareImage;
 }
 
-function route() {
-  const r = (location.hash || '#today').slice(1);
-  const view = ['today', 'week', 'month', 'wrapped'].includes(r) ? r : 'today';
-  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.hash === '#' + view));
-  (view === 'wrapped' ? showWrapped() : showRange(view)).catch(() =>
-    $('#view').innerHTML = '<div class="card empty">Le traceur ne répond pas. Est-il lancé ?</div>');
+// A 1080x1350 image of the Wrapped, drawn locally and downloaded as PNG.
+async function shareImage() {
+  const d = lastWrapped; if (!d) return;
+  const W = 1080, H = 1350, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'), F = getComputedStyle(document.body).fontFamily;
+  const load = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.onerror = () => r(null); i.src = src; });
+  g.fillStyle = '#111'; g.fillRect(0, 0, W, H);
+  const glow = g.createRadialGradient(W * .85, H * 1.05, 0, W * .85, H * 1.05, 900);
+  glow.addColorStop(0, 'rgba(77,124,255,.35)'); glow.addColorStop(1, 'rgba(77,124,255,0)'); g.fillStyle = glow; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,255,255,.045)'; g.lineWidth = 1;
+  for (let x = 0; x <= W; x += 60) { g.beginPath(); g.moveTo(x + .5, 0); g.lineTo(x + .5, H); g.stroke(); }
+  for (let y = 0; y <= H; y += 60) { g.beginPath(); g.moveTo(0, y + .5); g.lineTo(W, y + .5); g.stroke(); }
+  const logo = await load('/logo.png'); if (logo) g.drawImage(logo, 80, 80, 64, 64);
+  g.fillStyle = '#f2f2f2'; g.font = `600 32px ${F}`; g.fillText('Activity Tracker', 164, 122);
+  g.fillStyle = '#a3a3a3'; g.font = `400 30px ${F}`;
+  g.fillText(`${T.yourWrapped} · ${day(d.from, { day: 'numeric', month: 'short' })} – ${day(d.to, { day: 'numeric', month: 'short' })}`, 80, 250);
+  const [ptitle, ptext] = personaText(d.persona);
+  g.font = `120px "Segoe UI Emoji", ${F}`; g.fillText(d.persona.emoji, 72, 410);
+  g.fillStyle = '#f2f2f2'; g.font = `600 92px ${F}`; g.fillText(ptitle, 76, 540);
+  g.fillStyle = '#a3a3a3'; g.font = `400 34px ${F}`; g.fillText(ptext, 80, 600);
+  g.fillStyle = '#6e6e6e'; g.font = `500 28px ${F}`; g.fillText(T.total.toUpperCase(), 80, 720);
+  g.fillStyle = '#f2f2f2'; g.font = `600 120px ${F}`; g.fillText(fmt(d.total), 74, 840);
+  g.fillStyle = '#6e6e6e'; g.font = `500 28px ${F}`; g.fillText(T.top5.toUpperCase(), 80, 950);
+  for (const [i, a] of d.top_apps.slice(0, 3).entries()) {
+    const y = 990 + i * 92, icon = await load('/icon/' + encodeURIComponent(a.process));
+    if (icon) g.drawImage(icon, 80, y, 60, 60);
+    else { g.fillStyle = color(a.name); g.beginPath(); g.roundRect(80, y, 60, 60, 14); g.fill(); g.fillStyle = '#fff'; g.font = `600 30px ${F}`; g.fillText(a.name[0].toUpperCase(), 100, y + 41); }
+    g.fillStyle = '#f2f2f2'; g.font = `500 40px ${F}`; g.fillText(a.name, 166, y + 44);
+    g.fillStyle = '#a3a3a3'; g.textAlign = 'right'; g.fillText(fmt(a.seconds), W - 80, y + 44); g.textAlign = 'left';
+  }
+  g.fillStyle = '#6e6e6e'; g.font = `400 26px ${F}`; g.fillText('ef tools · Activity Tracker', 80, H - 70);
+  const a = document.createElement('a'); a.download = `wrapped-${d.from}.png`; a.href = c.toDataURL('image/png'); a.click();
 }
-window.addEventListener('hashchange', route);
-route();
-setInterval(() => { if (!document.hidden && location.hash !== '#wrapped') route(); }, 60000);
+
+// ---------------------------------------------------------------- router
+const VIEWS = ['today', 'week', 'month', 'year', 'wrapped'];
+function route() {
+  const r = (location.hash || '#today').slice(1), view = VIEWS.includes(r) ? r : 'today';
+  document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.hash === '#' + view));
+  const p = view === 'wrapped' ? showWrapped() : view === 'year' ? showYear() : showRange(view);
+  p.catch(() => $('#view').innerHTML = `<div class="card empty">${T.offline}</div>`);
+}
+async function init() {
+  try { CONF = await getJSON('/api/config'); } catch { CONF = {}; }
+  T = I18N[CONF.lang] || I18N[(navigator.language || 'en').slice(0, 2)] || I18N.en;
+  document.documentElement.lang = CONF.lang || 'en';
+  $('#nav').innerHTML = VIEWS.map(v => `<a href="#${v}">${v === 'wrapped' ? '✨ ' : ''}${T.nav[v]}</a>`).join('');
+  $('#foot-local').textContent = T.local;
+  $('#foot-export').textContent = T.export;
+  $('#foot-version').textContent = 'v' + (CONF.version || '');
+  window.addEventListener('hashchange', route);
+  route();
+  setInterval(() => { if (!document.hidden && !['#wrapped', '#year'].includes(location.hash)) route(); }, 60000);
+}
+init();
 
 // Tooltips
 const tip = $('#tip');
