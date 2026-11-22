@@ -7,13 +7,12 @@ pub enum Lang {
 }
 
 impl Lang {
-    /// `setting` is the config value ("auto" | "fr" | "en"); `system_is_french` comes from Windows.
-    pub fn resolve(setting: &str, system_is_french: bool) -> Lang {
-        match setting.to_ascii_lowercase().as_str() {
-            "fr" => Lang::Fr,
-            "en" => Lang::En,
-            _ if system_is_french => Lang::Fr,
-            _ => Lang::En,
+    /// `setting` is the config value: English unless "fr" is asked for.
+    pub fn resolve(setting: &str) -> Lang {
+        if setting.trim().eq_ignore_ascii_case("fr") {
+            Lang::Fr
+        } else {
+            Lang::En
         }
     }
 
@@ -183,10 +182,10 @@ mod tests {
 
     #[test]
     fn language_resolution() {
-        assert_eq!(Lang::resolve("auto", true), Lang::Fr);
-        assert_eq!(Lang::resolve("auto", false), Lang::En);
-        assert_eq!(Lang::resolve("EN", true), Lang::En);
-        assert_eq!(Lang::resolve("fr", false), Lang::Fr);
+        assert_eq!(Lang::resolve("en"), Lang::En);
+        assert_eq!(Lang::resolve("auto"), Lang::En);
+        assert_eq!(Lang::resolve(""), Lang::En);
+        assert_eq!(Lang::resolve(" FR "), Lang::Fr);
     }
 
     #[test]

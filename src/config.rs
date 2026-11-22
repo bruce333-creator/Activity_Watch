@@ -23,8 +23,8 @@ break_reminder_minutes = 60
 # Open the Wrapped window automatically on the first use of a new week (else: a notification).
 wrapped_auto_open = false
 
-# "auto" (Windows language), "fr" or "en".
-language = "auto"
+# Interface language: "en" (default) or "fr".
+language = "en"
 
 # Your creative / focus apps (display names), used for the daily streak.
 # Default: Maya, Blender, Houdini, ZBrush, Substance Painter, Photoshop, Nuke,
@@ -218,7 +218,7 @@ impl Config {
             notifications: true,
             break_reminder_minutes: 60,
             wrapped_auto_open: false,
-            language: "auto".into(),
+            language: "en".into(),
             focus_apps: DEFAULT_FOCUS_APPS.iter().map(|s| s.to_string()).collect(),
             streak_minutes: 30,
             ignored_apps: Vec::new(),

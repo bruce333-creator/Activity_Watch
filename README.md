@@ -4,131 +4,127 @@
 
 ![Activity Tracker](docs/press/01-hero.png)
 
-Traceur de temps d'écran pour Windows 10/11, écrit en Rust. Il mesure **combien de temps vous passez sur votre PC** et dans chaque application, avec un tableau de bord bien-être, un **Wrapped** chaque semaine et le temps par projet pour les artistes 3D (Maya, Blender, Houdini…).
+A screen-time tracker for Windows 10/11, written in Rust. It measures **how much time you spend on your PC** and in each app, with a wellbeing dashboard, a weekly **Wrapped** and time per project for 3D artists (Maya, Blender, Houdini…).
 
-- Un seul `.exe` d'environ 2 Mo, sans installation ni dépendance (runtime C liée statiquement).
-- Pas de hook clavier/souris, pas de GPU, aucune télémétrie : le tableau de bord n'écoute que sur `127.0.0.1`. Seule connexion sortante : la vérification de mise à jour, une fois par jour (désactivable).
-- Échantillonnage toutes les 2 s par un thread endormi, priorité « inférieure à la normale » + EcoQoS (Windows 11).
-- Les données restent chez vous : `%APPDATA%\ActivityTracker\activity.db` (SQLite).
+- One ~2 MB `.exe`, no installer, no dependencies (C runtime statically linked).
+- No keyboard/mouse hook, no GPU, no telemetry: the dashboard only listens on `127.0.0.1`. The only outgoing connection is the daily update check (can be turned off).
+- Samples every 2 s from a sleeping thread, "below normal" priority + EcoQoS (Windows 11).
+- Your data stays with you: `%APPDATA%\ActivityTracker\activity.db` (SQLite).
 
-## Télécharger le .exe
+## Download
 
-1. Sur GitHub, ouvrez l'onglet **Actions**, puis le workflow **build**.
-2. Cliquez sur la dernière exécution réussie (coche verte).
-3. En bas de la page, section **Artifacts**, téléchargez **activity-tracker** (un `.zip` contenant `activity-tracker.exe`).
-4. Placez l'exe dans un dossier à vous, par ex. `C:\Outils\ActivityTracker\` (le fichier `config.toml` sera créé à côté au premier lancement).
+**[Download the latest version](https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/activity-tracker.exe)** (or see [all releases](https://github.com/bruce333-creator/Activity_Watch/releases)).
 
-Pour une version publiée : poussez un tag `v0.4.0` (par ex.) ; l'exe est alors joint à la **Release** GitHub correspondante (voir « Distribuer »).
+Put the exe in a folder of your own, e.g. `C:\Tools\ActivityTracker\` (a `config.toml` is created next to it on first launch), then double-click it.
 
-> Windows SmartScreen peut avertir au premier lancement car l'exe n'est pas signé : « Informations complémentaires » → « Exécuter quand même ».
+> The exe is not signed: on first launch Windows SmartScreen may say "Windows protected your PC". Click **More info** → **Run anyway**. See [SmartScreen and antivirus](#smartscreen-and-antivirus).
 
-## Mettre à jour
+## Updating
 
-**Automatiquement** (à partir de la 0.5) : une fois par jour, Activity Tracker regarde s'il existe une nouvelle version sur GitHub. Si oui :
+**Automatic** (from 0.5 on): once a day, Activity Tracker checks GitHub for a newer version. If there is one:
 
-- une notification « Mise à jour X disponible » apparaît : **cliquez dessus** pour l'installer ;
-- ou clic droit sur l'icône → **Installer la mise à jour X** ;
-- ou le bouton **Installer** dans le bandeau en haut de la fenêtre.
+- an "Update X available" notification appears: **click it** to install;
+- or right-click the tray icon → **Install update X**;
+- or the **Install** button in the banner at the top of the window.
 
-L'appli télécharge le nouvel exe, le met à la place de l'ancien et redémarre toute seule (quelques secondes). Rien n'est installé sans votre clic. Vos données, réglages, noms et logos sont conservés. Pour désactiver la vérification : `check_updates = false`.
+The app downloads the new exe, swaps it with the old one and restarts by itself (a few seconds). Nothing is installed without your click. Your data, settings, names and logos are kept. To turn the check off: `check_updates = false`.
 
-**À la main** (versions 0.4 et avant, ou si l'exe est dans un dossier protégé comme `C:\Program Files`) :
+**By hand** (0.4 and earlier, or if the exe sits in a protected folder such as `C:\Program Files`):
 
-1. Clic droit sur l'icône → **Quitter**. Cela enregistre la session en cours.
-2. Remplacez l'ancien `activity-tracker.exe` par le nouveau, **dans le même dossier** et sous le même nom.
-3. Double-cliquez sur le nouvel exe.
+1. Right-click the tray icon → **Quit**. This saves the current session.
+2. Replace the old `activity-tracker.exe` with the new one, **in the same folder** and with the same name.
+3. Double-click the new exe.
 
-Vos données (historique, noms et logos personnalisés) sont dans `%APPDATA%\ActivityTracker\` et ne sont jamais touchées par une mise à jour. Le démarrage automatique continue de marcher puisque le chemin de l'exe ne change pas. La version installée est affichée en bas de la fenêtre et dans Propriétés → Détails de l'exe.
+Your data (history, custom names and logos) lives in `%APPDATA%\ActivityTracker\` and is never touched by an update. Autostart keeps working since the exe path does not change. The installed version is shown at the bottom of the window and in the exe's Properties → Details.
 
-## Utilisation
+## Usage
 
-Double-cliquez sur `activity-tracker.exe`. Le logo (horloge blanche sur fond noir) apparaît dans la zone de notification ; il peut être caché sous la flèche ^. Faites-le glisser dans la barre pour le garder visible.
+Double-click `activity-tracker.exe`. The logo (white clock on black) appears in the notification area; it may be hidden under the ^ arrow. Drag it onto the taskbar to keep it visible.
 
-- **Clic gauche** : ouvre Activity Tracker dans sa propre fenêtre.
-- **Clic droit** : *Ouvrir Activity Tracker*, *Wrapped de la semaine*, *Mettre en pause / Reprendre le suivi* (l'icône devient grise), *Lancer au démarrage de Windows* (case à cocher), *Quitter*.
+- **Left click**: opens Activity Tracker in its own window.
+- **Right click**: *Open Activity Tracker*, *Weekly Wrapped*, *Pause / Resume tracking* (the icon turns grey), *Run at Windows startup* (checkbox), *Quit*.
 
-Les menus, notifications et le tableau de bord sont en **français ou en anglais** selon la langue de Windows (réglable avec `language`).
+Everything is in English. A French translation is available with `language = "fr"`.
 
-Relancer l'exe alors qu'il tourne déjà ouvre simplement la fenêtre (une seule instance à la fois).
+Launching the exe while it is already running just opens the window (one instance at a time).
 
-### La fenêtre
+### The window
 
-L'interface s'ouvre dans une **fenêtre d'application** (mode « app » de Microsoft Edge, présent sur tout Windows 10/11 : pas d'onglets, pas de barre d'adresse). Cela ne coûte rien quand la fenêtre est fermée et ne grossit pas l'exe. Si Edge est absent, la page s'ouvre dans le navigateur par défaut, à l'adresse `http://127.0.0.1:8765/`.
+The interface opens in an **app window** (Microsoft Edge "app" mode, present on every Windows 10/11: no tabs, no address bar). It costs nothing while closed and does not grow the exe. Without Edge, the page opens in the default browser at `http://127.0.0.1:8765/`.
 
-- **Aujourd'hui / Semaine / Mois** :
-  - temps d'écran comparé à la même période précédente (hier à la même heure, etc.) ;
-  - anneau d'objectif ;
-  - frise de la journée et barres par heure ou par jour ;
-  - applications avec **leur vraie icône** et la variation par appli (« +1 h 20 », « −35 min ») ;
-  - **projets** (voir plus bas) ;
-  - **bien-être** : pauses, plus long sans pause, début et fin de journée, temps après 23 h ;
-  - **focus** : plus longue concentration sur une seule appli, changements d'appli par heure ;
-  - **limites par appli**.
-- **Année** : un calendrier (une case par jour, plus clair = plus de temps), la **série créative** 🔥 (jours d'affilée avec au moins 30 min sur vos apps créatives), la **série sous l'objectif** 🌿, le jour record et la moyenne.
-- **✨ Wrapped** : votre profil de la semaine (Marathonien, Oiseau de nuit, Lève-tôt, Fidèle à Maya, Concentration profonde, Zen, Équilibré…), le total et l'évolution, l'app n°1, le top 5, vos projets, ce qui a monté ou baissé, le jour le plus chargé et l'heure de pointe. Le bouton **Partager l'image** télécharge une image 1080×1350 prête pour les réseaux sociaux.
-- **Exporter en CSV** (en bas de page) : toutes les sessions (début, fin, minutes, appli, processus, projet), à ouvrir dans Excel.
+- **Today / Week / Month**:
+  - screen time compared with the same previous period (yesterday at the same hour, etc.);
+  - goal ring;
+  - day timeline and bars per hour or per day;
+  - apps with **their real icon** and the change per app ("+1 h 20", "−35 min");
+  - **projects** (see below);
+  - **wellbeing**: breaks, longest stretch without a break, start and end of the day, time after 11 pm;
+  - **focus**: longest run in a single app, app switches per hour;
+  - **per-app limits**.
+- **Year**: a calendar (one square per day, brighter = more time), the **creative streak** (days in a row with at least 30 min in your creative apps), the **under-goal streak**, the record day and the average.
+- **Wrapped**: your profile of the week (Marathoner, Night Owl, Early Bird, Loyal to Maya, Deep Focus, Zen, Balanced…), total and trend, #1 app, top 5, your projects, what went up or down, busiest day and peak hour. **Share image** downloads a 1080×1350 picture ready for social media.
+- **Export CSV** (bottom of the page): every session (start, end, minutes, app, process, project), to open in Excel.
 
-La page se rafraîchit chaque minute ; la session en cours est écrite sur disque toutes les 60 s, et immédiatement quand Windows s'éteint.
+The page refreshes every minute; the current session is written to disk every 60 s, and immediately when Windows shuts down.
 
-### Renommer une appli, changer son logo
+### Renaming an app, changing its logo
 
-Bouton **✎** au survol d'une appli, ou onglet **Applis** (toutes les applis déjà vues) → **Personnaliser** :
-- **nom affiché** : il s'applique partout (listes, Wrapped, limites, export) et à tous les processus de l'appli ;
-- **logo** : PNG, JPG, SVG, ICO ou WebP, automatiquement mis à 128×128 px.
+The **✎** button when hovering an app, or the **Apps** tab (every app seen so far) → **Customize**:
+- **display name**: applies everywhere (lists, Wrapped, limits, export) and to every process of the app;
+- **logo**: PNG, JPG, SVG, ICO or WebP, automatically resized to 128×128 px.
 
-Pour revenir en arrière, utilisez « Remettre le nom d'origine » et « Remettre le logo d'origine ». Donner le même nom à deux applis les regroupe (par exemple Chrome et Edge en « Web »).
+To go back, use "Restore the original name" and "Restore the original logo". Giving two apps the same name merges them (e.g. Chrome and Edge as "Web").
 
-Tout est enregistré dans la base (`%APPDATA%\ActivityTracker\activity.db`) : c'est permanent, y compris après une mise à jour ou un redémarrage.
+Everything is saved in the database (`%APPDATA%\ActivityTracker\activity.db`): it is permanent, including after an update or a restart.
 
 ### Notifications
 
-Notifications Windows natives, désactivables avec `notifications = false` :
+Native Windows notifications, turned off with `notifications = false`:
 
-- **Pause** ☕ après `break_reminder_minutes` (60) sans vraie pause, puis à nouveau toutes les 60 min tant que vous n'en faites pas. Une pause de 5 min ou plus remet le compteur à zéro.
-- **Limite par appli** atteinte (`[app_limits]`), une fois par jour.
-- **Objectif du jour** atteint, une fois par jour.
-- **Wrapped prêt** ✨ au premier usage d'une nouvelle semaine ; un clic l'ouvre. Avec `wrapped_auto_open = true`, il s'ouvre directement.
+- **Break** after `break_reminder_minutes` (60) without a real break, then every 60 min until you take one. A break of 5 min or more resets the counter.
+- **App limit** reached (`[app_limits]`), once a day.
+- **Daily goal** reached, once a day.
+- **Wrapped ready** on the first use of a new week; a click opens it. With `wrapped_auto_open = true` it opens directly.
+- **Update available**, once per new version; a click installs it.
 
-### Temps par projet (artistes 3D)
+### Time per project (3D artists)
 
-Le titre de la fenêtre active est lu **uniquement** pour y trouver le nom d'un fichier de projet connu : `.mb .ma .blend .hip .hipnc .nk .aep .prproj .psd .spp .ztl .uproject .c4d .max .usd`… Seul le nom du fichier est enregistré (par exemple `robot_v03.mb`), jamais le reste du titre. Les fenêtres annexes (Script Editor, Hypershade, boîtes de dialogue) restent comptées sur la scène ouverte.
+The title of the active window is read **only** to find the name of a known project file: `.mb .ma .blend .hip .hipnc .nk .aep .prproj .psd .spp .ztl .uproject .c4d .max .usd`… Only the file name is stored (e.g. `robot_v03.mb`), never the rest of the title. Side windows (Script Editor, Hypershade, dialogs) keep counting for the open scene.
 
-### Comment le temps est compté
+### How time is counted
 
-- **Actif** : vous avez utilisé le clavier ou la souris depuis moins de `idle_threshold_secs` (180 s par défaut). Le temps est attribué au **processus** de la fenêtre au premier plan, jamais au titre de la fenêtre : toutes les fenêtres de Maya (vue 3D, Script Editor, Hypershade, Render View, boîtes de dialogue…) comptent comme Maya.
-- **Une application = un nom** : les processus qui portent le même nom affiché sont fusionnés. `maya.exe`, `mayapy.exe`, `mayabatch.exe` et `render.exe` sont tous comptés comme **Maya**. Quand Maya ne répond plus (« Ne répond pas »), Windows affiche une fenêtre fantôme appartenant à `dwm.exe` : ce temps reste attribué à Maya.
-- **Inactif** : au-delà du seuil, ou session verrouillée (Win+L). La session se termine au moment de la **dernière** saisie : les 3 minutes d'attente ne sont pas comptées. Écran éteint = pas de saisie = pas compté. Une mise en veille du PC coupe la session au dernier échantillon.
-- **Pause** (bien-être) : un trou d'au moins `break_minutes` (5 min) entre deux périodes d'activité de la même journée. Les journées vont de 5 h à 5 h : finir à 1 h du matin compte dans la soirée de la veille.
+- **Active**: you used the keyboard or mouse less than `idle_threshold_secs` ago (180 s by default). Time goes to the **process** of the foreground window, never to the window title: every Maya window (viewport, Script Editor, Hypershade, Render View, dialogs…) counts as Maya.
+- **One app = one name**: processes sharing a display name are merged. `maya.exe`, `mayapy.exe`, `mayabatch.exe` and `render.exe` all count as **Maya**. When Maya stops responding ("Not responding"), Windows shows a ghost window owned by `dwm.exe`: that time still goes to Maya.
+- **Idle**: past the threshold, or session locked (Win+L). The session ends at the **last** input: the 3 minutes of waiting are not counted. Screen off = no input = not counted. Sleep cuts the session at the last sample.
+- **Break** (wellbeing): a gap of at least `break_minutes` (5 min) between two active periods of the same day. Days run from 5 am to 5 am: stopping at 1 am counts in the previous evening.
 
 ## Configuration (`config.toml`)
 
-Créé automatiquement à côté de l'exe au premier lancement. Modifiez-le puis relancez le traceur (Quit puis double-clic). En cas d'erreur de syntaxe, les valeurs par défaut sont utilisées (et l'erreur est notée dans le log `--debug-log`).
+Created next to the exe on first launch. Edit it, then restart the tracker (Quit, then double-click). On a syntax error the defaults are used (and the error is written to the `--debug-log` log).
 
-| Clé | Défaut | Rôle |
+| Key | Default | Purpose |
 |---|---|---|
-| `poll_interval_secs` | `2` | Intervalle entre deux échantillons (1 à 60 s). |
-| `idle_threshold_secs` | `180` | Secondes sans clavier/souris avant de considérer que vous êtes absent. |
-| `daily_goal_hours` | `8.0` | Objectif (ou limite) de temps d'écran par jour. `0` = pas d'objectif. |
-| `break_minutes` | `5` | Durée minimale d'un trou pour compter comme une pause. |
-| `notifications` | `true` | Active les notifications Windows. |
-| `break_reminder_minutes` | `60` | Rappel de pause après X min sans pause. `0` = jamais. |
-| `wrapped_auto_open` | `false` | `true` = le Wrapped s'ouvre tout seul en début de semaine (sinon : notification). |
-| `language` | `"auto"` | `"auto"` (langue de Windows), `"fr"` ou `"en"`. |
-| `focus_apps` | Maya, Blender, Houdini, ZBrush, Substance Painter, Photoshop, Nuke, After Effects, Premiere Pro, Unreal Engine, RenderMan | Vos apps créatives (noms affichés), pour la série 🔥. |
-| `streak_minutes` | `30` | Minutes minimum sur ces apps pour qu'un jour compte dans la série. |
-| `ignored_apps` | `["lockapp.exe"]` | Applications jamais enregistrées. |
-| `web_port` | `8765` | Port du tableau de bord (toujours sur `127.0.0.1`). |
-| `check_updates` | `true` | Vérifie une fois par jour s'il existe une nouvelle version (une requête à `api.github.com`, rien d'autre n'est envoyé). |
-| `[app_limits]` | vide | Limite quotidienne en minutes par appli (nom affiché), ex. `"Discord" = 60`. |
-| `[friendly_names]` | liste intégrée | Nom affiché par processus. **Deux processus avec le même nom sont fusionnés.** Vos entrées s'ajoutent à la liste intégrée (Maya, Blender, Photoshop, Premiere Pro, After Effects, Houdini, ZBrush, Nuke, Substance Painter, Chrome…). |
+| `poll_interval_secs` | `2` | Seconds between two samples (1 to 60). |
+| `idle_threshold_secs` | `180` | Seconds without keyboard/mouse before you count as away. |
+| `daily_goal_hours` | `8.0` | Daily screen-time goal (or limit). `0` = no goal. |
+| `break_minutes` | `5` | Minimum gap that counts as a break. |
+| `notifications` | `true` | Windows notifications. |
+| `break_reminder_minutes` | `60` | Break reminder after X min without a break. `0` = never. |
+| `wrapped_auto_open` | `false` | `true` = the Wrapped opens by itself when a week starts (else: a notification). |
+| `language` | `"en"` | `"en"` or `"fr"`. |
+| `focus_apps` | Maya, Blender, Houdini, ZBrush, Substance Painter, Photoshop, Nuke, After Effects, Premiere Pro, Unreal Engine, RenderMan | Your creative apps (display names), for the creative streak. |
+| `streak_minutes` | `30` | Minutes in those apps for a day to count in the streak. |
+| `ignored_apps` | `["lockapp.exe"]` | Apps never recorded. |
+| `web_port` | `8765` | Dashboard port (always on `127.0.0.1`). |
+| `check_updates` | `true` | Checks once a day for a newer version (one request to `api.github.com`, nothing else is sent). |
+| `[app_limits]` | empty | Daily limit in minutes per app (display name), e.g. `"Discord" = 60`. |
+| `[friendly_names]` | built-in list | Display name per process. **Two processes with the same name are merged.** Your entries add to the built-in list (Maya, Blender, Photoshop, Premiere Pro, After Effects, Houdini, ZBrush, Nuke, Substance Painter, Chrome…). |
 
-Un `config.toml` créé par une ancienne version reste valable : les nouvelles clés prennent leur valeur par défaut. Pour voir toutes les options commentées, renommez votre fichier puis relancez le traceur, qui en recrée un complet.
+A `config.toml` made by an older version stays valid: new keys take their default value (an old `language = "auto"` now means English). To see every option with comments, rename your file and restart the tracker, which writes a complete one.
 
-Les anciennes clés `render_processes`, `render_cpu_threshold` et `three_d_apps` (version 0.1) sont simplement ignorées.
+Process names are case-insensitive. To find the exact name of a program: Task Manager → **Details** tab. Premiere Pro is `Adobe Premiere Pro.exe` and After Effects `AfterFX.exe`.
 
-Les noms de processus ne sont pas sensibles à la casse. Pour trouver le nom exact d'un logiciel : Gestionnaire des tâches → onglet **Détails**. Premiere Pro s'appelle `Adobe Premiere Pro.exe` et After Effects `AfterFX.exe`.
-
-Exemple :
+Example:
 
 ```toml
 idle_threshold_secs = 300
@@ -141,24 +137,24 @@ break_reminder_minutes = 75
 
 [friendly_names]
 "houdinifx.exe" = "Houdini"
-"mon-outil-maya.exe" = "Maya"   # fusionné avec Maya
+"my-maya-tool.exe" = "Maya"   # merged with Maya
 ```
 
-## Démarrage automatique avec Windows
+## Run at Windows startup
 
-Le plus simple : clic droit sur l'icône → **Lancer au démarrage de Windows**. Ou, depuis une invite de commandes dans le dossier de l'exe :
+Easiest: right-click the tray icon → **Run at Windows startup**. Or, from a command prompt in the exe's folder:
 
 ```
 activity-tracker.exe --install-autostart
 ```
 
-Cela ajoute une entrée dans `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (votre compte uniquement, pas besoin d'être administrateur) qui pointe vers l'emplacement **actuel** de l'exe. Si vous déplacez l'exe, relancez la commande. Pour retirer :
+This adds an entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (your account only, no admin rights needed) pointing to the **current** location of the exe. If you move the exe, run the command again. To remove it:
 
 ```
 activity-tracker.exe --uninstall-autostart
 ```
 
-## Diagnostic
+## Troubleshooting
 
 ### `--debug-log`
 
@@ -166,7 +162,7 @@ activity-tracker.exe --uninstall-autostart
 activity-tracker.exe --debug-log
 ```
 
-Écrit `activity-tracker.log` à côté de l'exe : démarrage et configuration, chaque changement d'état (début/fin de session avec le nom de l'application, pause, démarrage automatique), les erreurs, et la mémoire utilisée (working set) toutes les minutes. Pour l'utiliser au démarrage automatique, lancez une fois `--install-autostart`, puis modifiez la valeur `ActivityTracker` dans `regedit` pour ajouter ` --debug-log` après le chemin.
+Writes `activity-tracker.log` next to the exe: startup and configuration, every state change (session start/end with the app name, pause, autostart), update checks, errors, and the memory used (working set) every minute. To use it at startup, run `--install-autostart` once, then edit the `ActivityTracker` value in `regedit` to add ` --debug-log` after the path.
 
 ### `--selftest`
 
@@ -174,101 +170,84 @@ activity-tracker.exe --debug-log
 activity-tracker.exe --selftest
 ```
 
-Fait tourner le collecteur 15 secondes sur une base en mémoire (vos données ne sont pas touchées), puis affiche :\n\n- l'application au premier plan (nom et chemin) et la scène ou le projet détecté ;\n- les secondes d'inactivité et l'état de verrouillage ;\n- la langue, le démarrage automatique et la présence d'Edge pour la fenêtre ;\n- l'extraction d'icône et les icônes de la zone de notification ;\n- la mémoire (working set et pic) et le temps CPU consommé. Code de sortie 0 si tout s'est bien passé.
+Runs the collector for 15 seconds against an in-memory database (your data is not touched), then prints:
 
-### En cas de problème, envoyez-moi
+- the foreground app (name and path) and the detected scene or project;
+- idle seconds and lock state;
+- language, autostart and whether Edge is available for the window;
+- the update check result;
+- icon extraction and tray icons;
+- memory (working set and peak) and CPU time used. Exit code 0 when everything went fine.
 
-1. La sortie complète de `activity-tracker.exe --selftest` (copier-coller depuis la console).
-2. Le fichier `activity-tracker.log` après avoir reproduit le problème avec `--debug-log`.
-3. Votre `config.toml`.
-4. Une description : ce que vous faisiez, ce que vous attendiez, ce que le tableau de bord affiche. Si une application apparaît sous un mauvais nom, indiquez le nom exact de son processus (Gestionnaire des tâches → Détails).
+### Reporting a problem
 
-## Distribuer
+1. The full output of `activity-tracker.exe --selftest` (copy-paste from the console).
+2. `activity-tracker.log` after reproducing the problem with `--debug-log`.
+3. Your `config.toml`.
+4. A description: what you were doing, what you expected, what the dashboard shows. If an app shows up under the wrong name, give the exact name of its process (Task Manager → Details).
 
-### Publier une nouvelle version
+## Distribution
 
-1. Changez `version` dans `Cargo.toml` (par ex. `0.5.0` → `0.6.0`), commitez et poussez.
-2. Créez le tag correspondant et poussez-le :
+### Publishing a new version
+
+1. Change `version` in `Cargo.toml` (e.g. `0.5.0` → `0.6.0`), commit and push.
+2. Create the matching tag and push it:
 
    ```
    git tag v0.6.0
    git push origin v0.6.0
    ```
 
-GitHub Actions compile l'exe, le teste et crée la **Release** avec l'exe et des notes de version. Dès qu'elle est publiée, toutes les applis installées la proposent dans les 24 h. C'est gratuit (Actions et Releases sont gratuits pour un dépôt public).
+GitHub Actions builds the exe, tests it and creates the **Release** with the exe and release notes. As soon as it is published, every installed copy offers it within 24 h. It is free (Actions and Releases are free for a public repository).
 
-Règles :
-- le tag doit être exactement `v` + la version de `Cargo.toml`, sinon le build refuse de publier (une appli qui se croirait toujours en retard se mettrait à jour en boucle) ;
-- le dépôt doit rester **public** : les applis interrogent GitHub sans compte ;
-- l'exe joint doit garder le nom `activity-tracker.exe` ;
-- une Release marquée « pre-release » ou en brouillon n'est pas proposée : pratique pour tester avant de diffuser.
+Rules:
+- the tag must be exactly `v` + the `Cargo.toml` version, otherwise the build refuses to publish (an app that always thinks it is outdated would update in a loop);
+- the repository must stay **public**: the apps query GitHub without an account;
+- the attached exe must keep the name `activity-tracker.exe`;
+- a Release marked "pre-release" or draft is not offered: handy to test before shipping.
 
-**Lien de téléchargement permanent** (toujours la dernière version, idéal pour le site) : `https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/activity-tracker.exe`.
+**Permanent download link** (always the latest version, for a website): `https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/activity-tracker.exe`.
 
-### SmartScreen et antivirus
+### SmartScreen and antivirus
 
-Voir [Signer l'exe gratuitement](#signer-lexe-gratuitement-signpath-foundation) plus bas.
+An unsigned exe triggers SmartScreen ("Windows protected your PC") on its first downloads. Free ways to reduce or avoid it:
 
-- **Antivirus** : en cas de faux positif, soumettez l'exe à Microsoft (Microsoft Security Intelligence, « Submit a file », gratuit).
-- **Plus tard** : publication sur `winget` (le gestionnaire de paquets de Windows), qui permet `winget install`.
+- **Updates are never affected**: the built-in updater downloads without the browser's "Mark of the Web", so SmartScreen only concerns the very first install.
+- **winget** (Windows' package manager): once the app is in the `winget-pkgs` repository, `winget install` downloads without the Mark of the Web, so no SmartScreen prompt. Free; submission is a pull request reviewed by Microsoft.
+- **Microsoft Store**: free individual developer account; the Store signs the MSIX package, so no warning at all. The Store build would need adaptations (the Store handles updates, autostart goes through the package manifest).
+- **Reputation**: the warning fades as more people download the same exe.
+- **False positive in an antivirus**: submit the exe to Microsoft (Microsoft Security Intelligence → "Submit a file", free), and check it on virustotal.com before each release.
 
-### Signer l'exe gratuitement (SignPath Foundation)
+A self-signed certificate is useless: Windows does not trust it.
 
-Le projet est sous licence MIT, donc éligible à la signature gratuite de la **SignPath Foundation** pour les logiciels open source. Le workflow est déjà prêt : il signe automatiquement chaque Release dès que les réglages ci-dessous existent. En attendant, les Releases sortent non signées et le build marche normalement.
+## License
 
-1. **Demande** : formulaire « Apply » sur https://signpath.org. Indiquez le dépôt, la licence MIT, et que le build se fait par GitHub Actions. La section *Code signing policy* plus bas est la page de politique qu'ils demandent. Activez la double authentification (2FA) sur GitHub et sur SignPath : c'est exigé.
-2. **Après acceptation**, dans SignPath (app.signpath.io) :
-   - le projet doit avoir le slug `activity-tracker` et la politique de signature `release-signing` (sinon mettez vos slugs dans les variables `SIGNPATH_PROJECT_SLUG` / `SIGNPATH_POLICY_SLUG`) ;
-   - *Artifact configuration* : collez `.signpath/artifact-configuration.xml` ;
-   - ajoutez GitHub comme *Trusted build system* et liez-le au projet ;
-   - créez un utilisateur CI (*Users → Add CI user*) et copiez son **API token**.
-3. **Dans GitHub** (dépôt → Settings → Secrets and variables → Actions) :
-   - onglet *Secrets* : `SIGNPATH_API_TOKEN` = le token ;
-   - onglet *Variables* : `SIGNPATH_ORGANIZATION_ID` = l'ID d'organisation (visible dans l'URL ou les paramètres SignPath).
-4. **À chaque Release** : poussez le tag comme d'habitude. SignPath vous envoie une demande d'approbation (e-mail) : approuvez-la dans l'heure. Le build vérifie la signature puis publie l'exe signé.
+MIT, see [LICENSE](LICENSE).
 
-Autres pistes gratuites :
+## Third-party licenses
 
-- **Microsoft Store** : le compte développeur individuel est gratuit et le Store signe le paquet MSIX. Il n'y a alors aucun avertissement SmartScreen. Cette version demanderait des adaptations : c'est le Store qui gère les mises à jour (`check_updates = false`), et le lancement au démarrage passe par une déclaration du paquet plutôt que par le registre.
-- **Sans signature** : les mises à jour automatiques ne déclenchent pas SmartScreen. Seul le premier téléchargement depuis un navigateur est concerné, et l'avertissement diminue à mesure que l'exe est téléchargé.
-- Un **certificat auto-signé** ne sert à rien : Windows ne lui fait pas confiance.
+The [Manrope](https://github.com/sharanda/manrope) font is embedded in the exe under the SIL Open Font License 1.1 (`assets/fonts/OFL-Manrope.txt`), which allows redistributing it with the software.
 
-## Code signing policy
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
-
-- **Committers and reviewers**: [Enzo Freminet](https://github.com/bruce333-creator)
-- **Approvers**: [Enzo Freminet](https://github.com/bruce333-creator)
-
-Every release binary is built from this repository's source by GitHub Actions (`.github/workflows/build.yml`) and signed only after manual approval.
-
-**Privacy policy**: this program does not transfer any information to other networked systems, with one exception: once a day it asks `api.github.com` for the latest release of this project (an anonymous request carrying no personal data). The person operating it can disable this with `check_updates = false` in `config.toml`. All activity data stays on the local computer.
-
-## Licence
-
-MIT, voir [LICENSE](LICENSE).
-
-## Licences tierces
-
-La police [Manrope](https://github.com/sharanda/manrope) est intégrée dans l'exe sous licence SIL Open Font License 1.1 (`assets/fonts/OFL-Manrope.txt`), qui autorise sa redistribution avec le logiciel.
-
-## Compiler soi-même
+## Building
 
 ```
 cargo test
 cargo build --release
 ```
 
-Le résultat est `target\release\activity-tracker.exe`. Le code Win32 se trouve uniquement dans `src/win.rs` ; toute la logique (sessions, inactivité, SQLite, statistiques, bien-être, Wrapped, JSON) est indépendante de la plateforme et testée sous Linux comme sous Windows.
+The result is `target\release\activity-tracker.exe`. Win32 code lives only in `src/win.rs`; all the logic (sessions, idle, SQLite, statistics, wellbeing, Wrapped, JSON, update parsing) is platform independent and tested on Linux as on Windows.
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `src/collector.rs` | Machine d'états actif / inactif, sessions, projets, rappels de pause, limites, objectif, Wrapped |
-| `src/store.rs` | SQLite (WAL), une ligne par session |
-| `src/stats.rs` | Jour / semaine / mois / année, fusion des apps, projets, bien-être, focus, séries, Wrapped |\n| `src/project.rs` | Nom de la scène / du projet à partir du titre de fenêtre |\n| `src/notice.rs` | Textes des notifications et du menu (FR / EN) |
-| `src/png.rs` | Encodeur PNG minimal pour les icônes d'applications |
-| `src/server.rs` | Tableau de bord local (tiny_http, accept bloquant), export CSV, noms et logos personnalisés |
+| `src/collector.rs` | Active / idle state machine, sessions, projects, break reminders, limits, goal, Wrapped |
+| `src/store.rs` | SQLite (WAL), one row per session |
+| `src/stats.rs` | Day / week / month / year, app merging, projects, wellbeing, focus, streaks, Wrapped |
+| `src/project.rs` | Scene / project name from the window title |
+| `src/notice.rs` | Notification and menu texts (EN / FR) |
+| `src/update.rs` | GitHub Releases check: version comparison, release parsing |
+| `src/png.rs` | Minimal PNG encoder for app icons |
+| `src/server.rs` | Local dashboard (tiny_http, blocking accept), CSV export, custom names and logos |
 | `src/config.rs` | `config.toml` |
-| `src/probe.rs` | Interface `SystemProbe` (+ sonde factice pour les tests) |
-| `src/win.rs` | Win32 : fenêtre au premier plan et titre, inactivité, verrouillage, icônes des .exe, zone de notification et notifications, fenêtre Edge, registre |
-| `assets/` | Page du tableau de bord, logo, icônes et police Manrope (intégrés dans l'exe ; `build.rs` ajoute aussi les infos de version) |
+| `src/probe.rs` | `SystemProbe` interface (+ fake probe for tests) |
+| `src/win.rs` | Win32: foreground window and title, idle, lock, exe icons, tray and notifications, Edge window, registry, update download and exe swap |
+| `assets/` | Dashboard page, logo, icons and Manrope font (embedded in the exe; `build.rs` also adds version info) |

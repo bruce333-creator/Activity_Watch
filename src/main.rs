@@ -32,7 +32,7 @@ fn main() {
         let cfg = args.get(3).map_or_else(config::Config::default, |p| {
             config::Config::load_or_create(p.as_ref()).0
         });
-        let lang = notice::Lang::resolve(&cfg.language, false);
+        let lang = notice::Lang::resolve(&cfg.language);
         println!("dashboard on http://127.0.0.1:{}", cfg.web_port);
         server::serve(db.as_ref(), cfg, lang, None);
         return;

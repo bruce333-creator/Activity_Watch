@@ -19,7 +19,6 @@ use windows::Win32::Foundation::{
     CloseHandle, ERROR_ALREADY_EXISTS, FILETIME, GetLastError, HANDLE, HINSTANCE, HWND, LPARAM,
     LRESULT, POINT, WPARAM,
 };
-use windows::Win32::Globalization::GetUserDefaultUILanguage;
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
     DeleteObject, GetDIBits, GetObjectW, HBITMAP, HDC,
@@ -415,10 +414,6 @@ fn open_ui(port: u16, page: &str) {
             SW_SHOWNORMAL,
         );
     }
-}
-
-fn system_is_french() -> bool {
-    unsafe { GetUserDefaultUILanguage() & 0x3FF == 0x0C } // LANG_FRENCH
 }
 
 /// The release exe is a GUI-subsystem app: reattach to the parent console so
@@ -993,7 +988,7 @@ pub fn main() -> i32 {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     }
     let (cfg, cfg_err) = Config::load_or_create(&dir.join("config.toml"));
-    let lang = Lang::resolve(&cfg.language, system_is_french());
+    let lang = Lang::resolve(&cfg.language);
     let offset = Store::open_in_memory()
         .map(|s| s.local_offset())
         .unwrap_or(0);
