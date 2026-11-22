@@ -39,6 +39,9 @@ ignored_apps = ["lockapp.exe"]
 # Local dashboard: http://127.0.0.1:<web_port>
 web_port = 8765
 
+# Look for a new version once a day (GitHub Releases). Nothing is installed without your click.
+check_updates = true
+
 # Daily limits per app, in minutes (display names). A notification is shown when reached.
 [app_limits]
 # "Discord" = 60
@@ -113,6 +116,7 @@ pub struct Config {
     pub streak_minutes: u64,
     pub ignored_apps: Vec<String>,
     pub web_port: u16,
+    pub check_updates: bool,
     pub app_limits: HashMap<String, u64>,
     pub friendly_names: HashMap<String, String>,
     /// Names chosen in the dashboard (original name -> new name), loaded from the database.
@@ -219,6 +223,7 @@ impl Config {
             streak_minutes: 30,
             ignored_apps: Vec::new(),
             web_port: 8765,
+            check_updates: true,
             app_limits: HashMap::new(),
             friendly_names: HashMap::new(),
             renames: HashMap::new(),

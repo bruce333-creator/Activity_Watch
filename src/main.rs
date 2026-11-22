@@ -14,6 +14,7 @@ mod server;
 mod stats;
 mod store;
 mod timeutil;
+mod update;
 #[cfg(windows)]
 mod win;
 

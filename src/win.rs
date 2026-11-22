@@ -6,11 +6,11 @@ use crate::notice::{Lang, Notice, menu};
 use crate::probe::{Foreground, SystemProbe};
 use crate::store::Store;
 use crate::timeutil::now_unix;
-use crate::{dlog, log, server};
+use crate::{dlog, log, server, update};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, Ordering};
 use std::sync::mpsc::{Sender, channel};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -23,6 +23,12 @@ use windows::Win32::Globalization::GetUserDefaultUILanguage;
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
     DeleteObject, GetDIBits, GetObjectW, HBITMAP, HDC,
+};
+use windows::Win32::Networking::WinHttp::{
+    INTERNET_DEFAULT_HTTPS_PORT, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_FLAG_SECURE,
+    WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_QUERY_STATUS_CODE, WinHttpCloseHandle, WinHttpConnect,
+    WinHttpOpen, WinHttpOpenRequest, WinHttpQueryHeaders, WinHttpReadData, WinHttpReceiveResponse,
+    WinHttpSendRequest, WinHttpSetTimeouts,
 };
 use windows::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, GetStdHandle, STD_OUTPUT_HANDLE,
@@ -317,13 +323,22 @@ fn set_low_priority() {
 }
 
 /// True if this is the only running instance. The mutex lives until the process exits.
-fn single_instance() -> bool {
-    unsafe {
-        match CreateMutexW(None, true, w!("Local\\ActivityTracker.SingleInstance")) {
-            Ok(_handle) => GetLastError() != ERROR_ALREADY_EXISTS,
-            Err(_) => true, // cannot tell: run anyway
+/// With `wait` (restart after an update), waits up to 15 s for the old process to exit.
+fn single_instance(wait: bool) -> bool {
+    for _ in 0..if wait { 30 } else { 1 } {
+        unsafe {
+            match CreateMutexW(None, true, w!("Local\\ActivityTracker.SingleInstance")) {
+                Ok(handle) if GetLastError() == ERROR_ALREADY_EXISTS => {
+                    let _ = CloseHandle(handle);
+                }
+                _ => return true, // ours (or cannot tell: run anyway)
+            }
+        }
+        if wait {
+            std::thread::sleep(Duration::from_millis(500));
         }
     }
+    false
 }
 
 fn autostart_enabled() -> bool {
@@ -423,11 +438,14 @@ fn attach_console() {
 
 const WM_TRAY: u32 = WM_APP + 1;
 const WM_NOTICE: u32 = WM_APP + 2;
+/// The new exe is in place: start it and exit.
+const WM_RESTART: u32 = WM_APP + 3;
 const ID_OPEN: u32 = 1;
 const ID_WRAPPED: u32 = 2;
 const ID_PAUSE: u32 = 3;
 const ID_STARTUP: u32 = 4;
 const ID_QUIT: u32 = 5;
+const ID_UPDATE: u32 = 6;
 
 /// State of the tray, used from its window procedure (main thread).
 struct Tray {
@@ -555,6 +573,10 @@ fn show_menu(hwnd: HWND) {
             let text = HSTRING::from(text);
             let _ = AppendMenuW(hmenu, MF_STRING | flags, id as usize, PCWSTR(text.as_ptr()));
         };
+        if let Some(r) = update::available().filter(|_| !INSTALLING.load(Ordering::Relaxed)) {
+            item(ID_UPDATE, &m.update.replace("{}", &r.version), MF_STRING);
+            let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
+        }
         item(ID_OPEN, m.open, MF_STRING);
         item(ID_WRAPPED, m.wrapped, MF_STRING);
         let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
@@ -622,6 +644,7 @@ fn show_menu(hwnd: HWND) {
                 stop_collector();
                 PostQuitMessage(0);
             }
+            ID_UPDATE => install_update(),
             _ => {}
         }
     }
@@ -636,11 +659,11 @@ unsafe extern "system" fn tray_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                 }
             }
             WM_RBUTTONUP | WM_CONTEXTMENU => show_menu(hwnd),
-            NIN_BALLOONUSERCLICK => {
-                if let Some((port, page)) = tray(|t| (t.port, t.notice_page)) {
-                    open_ui(port, page);
-                }
-            }
+            NIN_BALLOONUSERCLICK => match tray(|t| (t.port, t.notice_page)) {
+                Some((_, "#update")) => install_update(),
+                Some((port, page)) => open_ui(port, page),
+                None => {}
+            },
             _ => {}
         },
         WM_NOTICE => {
@@ -660,6 +683,26 @@ unsafe extern "system" fn tray_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                 } else {
                     let (title, body) = n.text(lang);
                     show_notification(hwnd, &title, &body);
+                }
+            }
+        }
+        WM_RESTART => {
+            let exe = tray(|t| t.exe.clone()).unwrap_or_default();
+            let mut cmd = std::process::Command::new(&exe);
+            cmd.arg("--updated");
+            if std::env::args().any(|a| a == "--debug-log") {
+                cmd.arg("--debug-log");
+            }
+            // The new process waits for this one to release the single-instance mutex.
+            match cmd.spawn() {
+                Ok(_) => {
+                    stop_collector();
+                    unsafe { PostQuitMessage(0) };
+                }
+                Err(e) => {
+                    // The new exe is in place anyway: it runs at the next start.
+                    dlog!("error: cannot start the updated exe: {e}");
+                    post_notice(Notice::UpdateFailed);
                 }
             }
         }
@@ -717,10 +760,192 @@ fn create_tray_window() -> Option<HWND> {
     }
 }
 
+// ---------------------------------------------------------------- updates
+
+static INSTALLING: AtomicBool = AtomicBool::new(false);
+
+/// Closes a WinHTTP handle when dropped.
+struct Net(*mut core::ffi::c_void);
+
+impl Drop for Net {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe {
+                let _ = WinHttpCloseHandle(self.0);
+            }
+        }
+    }
+}
+
+/// HTTPS GET with WinHTTP, which is part of Windows: no TLS library inside the exe.
+/// Uses the system proxy settings and follows redirects (GitHub downloads redirect).
+fn http_get(url: &str, accept: &str) -> Result<Vec<u8>, String> {
+    let rest = url.strip_prefix("https://").ok_or("not an https URL")?;
+    let (host, path) = rest.find('/').map_or((rest, "/"), |i| rest.split_at(i));
+    let fail = |what: &str| format!("{what}: {}", windows::core::Error::from_thread());
+    unsafe {
+        let agent = HSTRING::from(format!("ActivityTracker/{}", update::CURRENT));
+        let session = Net(WinHttpOpen(
+            &agent,
+            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+            PCWSTR::null(),
+            PCWSTR::null(),
+            0,
+        ));
+        if session.0.is_null() {
+            return Err(fail("WinHttpOpen"));
+        }
+        let _ = WinHttpSetTimeouts(session.0, 15_000, 15_000, 30_000, 60_000);
+        let connect = Net(WinHttpConnect(
+            session.0,
+            &HSTRING::from(host),
+            INTERNET_DEFAULT_HTTPS_PORT,
+            0,
+        ));
+        if connect.0.is_null() {
+            return Err(fail("connect"));
+        }
+        let request = Net(WinHttpOpenRequest(
+            connect.0,
+            w!("GET"),
+            &HSTRING::from(path),
+            PCWSTR::null(),
+            PCWSTR::null(),
+            std::ptr::null(),
+            WINHTTP_FLAG_SECURE,
+        ));
+        if request.0.is_null() {
+            return Err(fail("open request"));
+        }
+        let headers: Vec<u16> = format!("Accept: {accept}\r\n").encode_utf16().collect();
+        WinHttpSendRequest(request.0, Some(&headers), None, 0, 0, 0)
+            .map_err(|e| format!("send: {e}"))?;
+        WinHttpReceiveResponse(request.0, std::ptr::null_mut())
+            .map_err(|e| format!("receive: {e}"))?;
+        let (mut status, mut len) = (0u32, 4u32);
+        WinHttpQueryHeaders(
+            request.0,
+            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            PCWSTR::null(),
+            Some((&mut status as *mut u32).cast()),
+            &mut len,
+            std::ptr::null_mut(),
+        )
+        .map_err(|e| format!("status: {e}"))?;
+        if status != 200 {
+            return Err(format!("HTTP {status}"));
+        }
+        let mut body = Vec::new();
+        let mut buf = vec![0u8; 64 * 1024];
+        loop {
+            let mut read = 0u32;
+            WinHttpReadData(
+                request.0,
+                buf.as_mut_ptr().cast(),
+                buf.len() as u32,
+                &mut read,
+            )
+            .map_err(|e| format!("read: {e}"))?;
+            if read == 0 {
+                return Ok(body);
+            }
+            body.extend_from_slice(&buf[..read as usize]);
+            if body.len() > 64 << 20 {
+                return Err("response too large".into());
+            }
+        }
+    }
+}
+
+/// Ok(None) = up to date. A repository without any Release answers 404.
+fn check_for_update() -> Result<Option<update::Release>, String> {
+    let body = http_get(&update::latest_url(), "application/vnd.github+json")?;
+    Ok(update::parse_latest(
+        &String::from_utf8_lossy(&body),
+        update::CURRENT,
+    ))
+}
+
+/// Sleeping thread: checks one minute after start, then once a day.
+fn update_loop(notify: bool) {
+    std::thread::sleep(Duration::from_secs(60));
+    let mut announced = String::new();
+    loop {
+        match check_for_update() {
+            Ok(Some(r)) => {
+                dlog!("update {} available", r.version);
+                if r.version != announced {
+                    announced = r.version.clone();
+                    if notify {
+                        post_notice(Notice::Update {
+                            version: r.version.clone(),
+                        });
+                    }
+                }
+                update::set_available(Some(r));
+            }
+            Ok(None) => dlog!("update check: up to date"),
+            Err(e) => dlog!("update check failed: {e}"),
+        }
+        std::thread::sleep(Duration::from_secs(24 * 3600));
+    }
+}
+
+/// Downloads the new exe next to the current one, then swaps them. A running exe cannot be
+/// overwritten but can be renamed: the old one becomes .exe.old and is deleted at next start.
+fn download_and_swap(r: &update::Release) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let data = http_get(&r.url, "application/octet-stream")?;
+    if !update::looks_valid(&data, r.size) {
+        return Err(format!(
+            "unexpected download: {} bytes, {} announced",
+            data.len(),
+            r.size
+        ));
+    }
+    let new = exe.with_extension("exe.new");
+    let old = exe.with_extension("exe.old");
+    std::fs::write(&new, &data).map_err(|e| format!("write {}: {e}", new.display()))?;
+    let _ = std::fs::remove_file(&old);
+    std::fs::rename(&exe, &old).map_err(|e| format!("rename current exe: {e}"))?;
+    if let Err(e) = std::fs::rename(&new, &exe) {
+        let _ = std::fs::rename(&old, &exe);
+        return Err(format!("move new exe: {e}"));
+    }
+    Ok(())
+}
+
+/// Tray menu, notification click or dashboard button. Runs in the background.
+fn install_update() {
+    let Some(r) = update::available() else { return };
+    if INSTALLING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    std::thread::spawn(move || {
+        dlog!("installing update {} from {}", r.version, r.url);
+        match download_and_swap(&r) {
+            Ok(()) => {
+                dlog!("update {} in place, restarting", r.version);
+                let hwnd = TRAY_HWND.load(Ordering::Relaxed);
+                unsafe {
+                    let _ =
+                        PostMessageW(Some(HWND(hwnd as *mut _)), WM_RESTART, WPARAM(0), LPARAM(0));
+                }
+            }
+            Err(e) => {
+                dlog!("error: update failed: {e}");
+                INSTALLING.store(false, Ordering::SeqCst);
+                post_notice(Notice::UpdateFailed);
+            }
+        }
+    });
+}
+
 // ---------------------------------------------------------------- entry point
 
 const USAGE: &str =
     "activity-tracker [--debug-log] [--selftest] [--install-autostart] [--uninstall-autostart]";
+// --updated is internal: passed by the old exe when it restarts the new one.
 
 pub fn main() -> i32 {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -728,12 +953,13 @@ pub fn main() -> i32 {
     let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("activity-tracker.exe"));
     let dir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
 
-    // Every flag except --debug-log prints something.
-    if args.iter().any(|a| a != "--debug-log") {
+    // Every flag except --debug-log / --updated prints something.
+    if args.iter().any(|a| a != "--debug-log" && a != "--updated") {
         attach_console();
     }
-    const FLAGS: [&str; 4] = [
+    const FLAGS: [&str; 5] = [
         "--debug-log",
+        "--updated",
         "--selftest",
         "--install-autostart",
         "--uninstall-autostart",
@@ -791,11 +1017,15 @@ pub fn main() -> i32 {
     if has("--selftest") {
         return selftest(cfg, lang, &exe);
     }
-    if !single_instance() {
+    let updated = has("--updated");
+    if !single_instance(updated) {
         dlog!("another instance is running: opening the dashboard and exiting");
         open_ui(cfg.web_port, "");
         return 0;
     }
+    // Leftovers of an update.
+    let _ = std::fs::remove_file(exe.with_extension("exe.old"));
+    let _ = std::fs::remove_file(exe.with_extension("exe.new"));
 
     let data_dir = std::env::var_os("APPDATA")
         .map(PathBuf::from)
@@ -830,6 +1060,7 @@ pub fn main() -> i32 {
         wrapped_auto_open: cfg.wrapped_auto_open,
         notice_page: "",
     });
+    let (notify, check_updates) = (cfg.notifications, cfg.check_updates);
     let mut collector = Collector::new(WinProbe::new(), store, cfg);
     collector.notify = Box::new(post_notice);
     let worker = std::thread::spawn(move || collector::run(collector, rx));
@@ -841,6 +1072,16 @@ pub fn main() -> i32 {
     };
     tray(|t| t.worker = Some(worker));
     set_tray_icon(hwnd, true);
+
+    update::set_installer(install_update);
+    if updated && notify {
+        post_notice(Notice::Updated {
+            version: update::CURRENT.into(),
+        });
+    }
+    if check_updates {
+        std::thread::spawn(move || update_loop(notify));
+    }
 
     let mut msg = MSG::default();
     unsafe {
@@ -897,6 +1138,12 @@ fn selftest(cfg: Config, lang: Lang, exe: &Path) -> i32 {
         }
     }
     let own_icon = exe_icon_png(&exe.to_string_lossy());
+    // Network problems or a repository without Release must not fail the selftest.
+    let update_check = match check_for_update() {
+        Ok(Some(r)) => format!("{} available", r.version),
+        Ok(None) => "up to date".into(),
+        Err(e) => format!("not available ({e})"),
+    };
     let icons_ok = !load_icon(1, true).is_invalid() && !load_icon(2, true).is_invalid();
 
     let fg = c.probe.foreground_process();
@@ -928,6 +1175,7 @@ fn selftest(cfg: Config, lang: Lang, exe: &Path) -> i32 {
             .to_string())
     );
     println!("samples / errors   : {ticks} / {errors}");
+    println!("update check       : {update_check}");
     println!(
         "exe icon -> PNG    : {}",
         own_icon

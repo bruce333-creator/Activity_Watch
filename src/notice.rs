@@ -35,6 +35,12 @@ pub enum Notice {
     Goal { minutes: i64 },
     /// A new week started: last week's Wrapped is ready.
     Wrapped,
+    /// A newer version is available (click installs it).
+    Update { version: String },
+    /// The app restarted on a new version.
+    Updated { version: String },
+    /// Download or replacement failed.
+    UpdateFailed,
 }
 
 fn dur(lang: Lang, minutes: i64) -> String {
@@ -96,6 +102,30 @@ impl Notice {
                 "Your Wrapped is ready ✨".into(),
                 "See how your week went.".into(),
             ),
+            (Notice::Update { version }, Fr) => (
+                format!("Mise à jour {version} disponible"),
+                "Cliquez ici pour l'installer. Activity Tracker redémarrera tout seul, sans perdre vos données.".into(),
+            ),
+            (Notice::Update { version }, En) => (
+                format!("Update {version} available"),
+                "Click here to install it. Activity Tracker restarts by itself, your data is kept.".into(),
+            ),
+            (Notice::Updated { version }, Fr) => (
+                format!("Activity Tracker {version} installé"),
+                "La mise à jour est terminée.".into(),
+            ),
+            (Notice::Updated { version }, En) => (
+                format!("Activity Tracker {version} installed"),
+                "The update is complete.".into(),
+            ),
+            (Notice::UpdateFailed, Fr) => (
+                "La mise à jour a échoué".into(),
+                "Réessayez plus tard, ou téléchargez la nouvelle version sur la page du projet.".into(),
+            ),
+            (Notice::UpdateFailed, En) => (
+                "Update failed".into(),
+                "Try again later, or download the new version from the project page.".into(),
+            ),
         }
     }
 
@@ -103,6 +133,7 @@ impl Notice {
     pub fn page(&self) -> &'static str {
         match self {
             Notice::Wrapped => "#wrapped",
+            Notice::Update { .. } => "#update",
             _ => "#today",
         }
     }
@@ -116,6 +147,8 @@ pub struct Menu {
     pub resume: &'static str,
     pub startup: &'static str,
     pub quit: &'static str,
+    /// "Install update {version}"
+    pub update: &'static str,
     pub paused_tip: &'static str,
 }
 
@@ -128,6 +161,7 @@ pub fn menu(lang: Lang) -> Menu {
             resume: "Reprendre le suivi",
             startup: "Lancer au démarrage de Windows",
             quit: "Quitter",
+            update: "Installer la mise à jour {}",
             paused_tip: "Activity Tracker (en pause)",
         },
         Lang::En => Menu {
@@ -137,6 +171,7 @@ pub fn menu(lang: Lang) -> Menu {
             resume: "Resume tracking",
             startup: "Run at Windows startup",
             quit: "Quit",
+            update: "Install update {}",
             paused_tip: "Activity Tracker (paused)",
         },
     }
@@ -166,6 +201,13 @@ mod tests {
                 },
                 Notice::Goal { minutes: 480 },
                 Notice::Wrapped,
+                Notice::Update {
+                    version: "10.10.10".into(),
+                },
+                Notice::Updated {
+                    version: "10.10.10".into(),
+                },
+                Notice::UpdateFailed,
             ] {
                 let (t, b) = n.text(lang);
                 assert!(

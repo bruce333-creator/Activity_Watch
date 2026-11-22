@@ -244,9 +244,17 @@ pub fn serve(db_path: &Path, mut cfg: Config, lang: Lang, icon: Option<IconFn>) 
                     "goal": cfg.goal_secs(),
                     "break_minutes": cfg.break_minutes,
                     "break_reminder_minutes": cfg.break_reminder_minutes,
+                    "update": crate::update::available().map(|r| r.version),
                 });
                 req.respond(
                     Response::from_string(body.to_string()).with_header(header("application/json")),
+                )
+            }
+            "/api/update" if method == tiny_http::Method::Post => {
+                let ok = crate::update::request_install();
+                req.respond(
+                    Response::from_string(if ok { "ok" } else { "no update" })
+                        .with_status_code(if ok { 202 } else { 404 }),
                 )
             }
             "/api/year" => {

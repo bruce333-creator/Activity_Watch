@@ -22,11 +22,21 @@ Pour une version publiée : poussez un tag `v0.4.0` (par ex.) ; l'exe est alors 
 
 ## Mettre à jour
 
+**Automatiquement** (à partir de la 0.5) : une fois par jour, Activity Tracker regarde s'il existe une nouvelle version sur GitHub. Si oui :
+
+- une notification « Mise à jour X disponible » apparaît : **cliquez dessus** pour l'installer ;
+- ou clic droit sur l'icône → **Installer la mise à jour X** ;
+- ou le bouton **Installer** dans le bandeau en haut de la fenêtre.
+
+L'appli télécharge le nouvel exe, le met à la place de l'ancien et redémarre toute seule (quelques secondes). Rien n'est installé sans votre clic. Vos données, réglages, noms et logos sont conservés. Pour désactiver la vérification : `check_updates = false`.
+
+**À la main** (versions 0.4 et avant, ou si l'exe est dans un dossier protégé comme `C:\Program Files`) :
+
 1. Clic droit sur l'icône → **Quitter**. Cela enregistre la session en cours.
 2. Remplacez l'ancien `activity-tracker.exe` par le nouveau, **dans le même dossier** et sous le même nom.
 3. Double-cliquez sur le nouvel exe.
 
-Ne supprimez pas `config.toml`. Vos données (historique, noms et logos personnalisés) sont dans `%APPDATA%\ActivityTracker\` et ne sont jamais touchées par une mise à jour. Le démarrage automatique continue de marcher puisque le chemin de l'exe ne change pas. La version installée est affichée en bas de la fenêtre et dans Propriétés → Détails de l'exe.
+Vos données (historique, noms et logos personnalisés) sont dans `%APPDATA%\ActivityTracker\` et ne sont jamais touchées par une mise à jour. Le démarrage automatique continue de marcher puisque le chemin de l'exe ne change pas. La version installée est affichée en bas de la fenêtre et dans Propriétés → Détails de l'exe.
 
 ## Utilisation
 
@@ -106,6 +116,7 @@ Créé automatiquement à côté de l'exe au premier lancement. Modifiez-le puis
 | `streak_minutes` | `30` | Minutes minimum sur ces apps pour qu'un jour compte dans la série. |
 | `ignored_apps` | `["lockapp.exe"]` | Applications jamais enregistrées. |
 | `web_port` | `8765` | Port du tableau de bord (toujours sur `127.0.0.1`). |
+| `check_updates` | `true` | Vérifie une fois par jour s'il existe une nouvelle version (une requête à `api.github.com`, rien d'autre n'est envoyé). |
 | `[app_limits]` | vide | Limite quotidienne en minutes par appli (nom affiché), ex. `"Discord" = 60`. |
 | `[friendly_names]` | liste intégrée | Nom affiché par processus. **Deux processus avec le même nom sont fusionnés.** Vos entrées s'ajoutent à la liste intégrée (Maya, Blender, Photoshop, Premiere Pro, After Effects, Houdini, ZBrush, Nuke, Substance Painter, Chrome…). |
 
@@ -172,17 +183,39 @@ Fait tourner le collecteur 15 secondes sur une base en mémoire (vos données ne
 
 ## Distribuer
 
-Chaque tag `v*` poussé sur GitHub crée une **Release** avec l'exe et des notes de version générées automatiquement :
+### Publier une nouvelle version
 
-```
-git tag v0.4.0
-git push origin v0.4.0
-```
+1. Changez `version` dans `Cargo.toml` (par ex. `0.5.0` → `0.6.0`), commitez et poussez.
+2. Créez le tag correspondant et poussez-le :
 
-- **Lien de téléchargement permanent** (toujours la dernière version, idéal pour le site) : `https://github.com/<compte>/<dépôt>/releases/latest/download/activity-tracker.exe`. Le dépôt doit être public pour que ce lien marche sans connexion ; sinon, hébergez l'exe sur votre site.
-- **SmartScreen** : un exe non signé affiche « Windows a protégé votre ordinateur » chez les nouveaux utilisateurs. Pour l'éviter, signez l'exe : **Azure Trusted Signing** (environ 10 $/mois, le moins cher aujourd'hui) ou un certificat de signature de code. Sans signature, l'avertissement s'atténue à mesure que l'exe est téléchargé.
-- **Antivirus** : en cas de faux positif, soumettez l'exe à Microsoft (Microsoft Security Intelligence, « Submit a file »).
-- **Plus tard** : publication sur `winget` (le gestionnaire de paquets de Windows), qui permet `winget install` et les mises à jour en une commande.
+   ```
+   git tag v0.6.0
+   git push origin v0.6.0
+   ```
+
+GitHub Actions compile l'exe, le teste et crée la **Release** avec l'exe et des notes de version. Dès qu'elle est publiée, toutes les applis installées la proposent dans les 24 h. C'est gratuit (Actions et Releases sont gratuits pour un dépôt public).
+
+Règles :
+- le tag doit être exactement `v` + la version de `Cargo.toml`, sinon le build refuse de publier (une appli qui se croirait toujours en retard se mettrait à jour en boucle) ;
+- le dépôt doit rester **public** : les applis interrogent GitHub sans compte ;
+- l'exe joint doit garder le nom `activity-tracker.exe` ;
+- une Release marquée « pre-release » ou en brouillon n'est pas proposée : pratique pour tester avant de diffuser.
+
+**Lien de téléchargement permanent** (toujours la dernière version, idéal pour le site) : `https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/activity-tracker.exe`.
+
+### SmartScreen et antivirus
+
+Voir [Signer l'exe gratuitement](#signer-lexe-gratuitement) plus bas.
+
+- **Antivirus** : en cas de faux positif, soumettez l'exe à Microsoft (Microsoft Security Intelligence, « Submit a file », gratuit).
+- **Plus tard** : publication sur `winget` (le gestionnaire de paquets de Windows), qui permet `winget install`.
+
+### Signer l'exe gratuitement
+
+- **SignPath Foundation** : signature gratuite pour les projets open source. Il faut une licence open source (MIT par exemple) dans le dépôt, un dépôt public et un build par GitHub Actions. Après acceptation, la signature s'ajoute comme une étape du workflow. Le certificat est au nom de « SignPath Foundation ». Il a déjà une réputation chez Microsoft, donc l'avertissement disparaît vite. Ce n'est pas garanti dès le premier jour.
+- **Microsoft Store** : le compte développeur individuel est gratuit et le Store signe le paquet MSIX. Il n'y a alors aucun avertissement SmartScreen. Cette version demanderait des adaptations : c'est le Store qui gère les mises à jour (`check_updates = false`), et le lancement au démarrage passe par une déclaration du paquet plutôt que par le registre.
+- **Sans signature** : les mises à jour automatiques ne déclenchent pas SmartScreen. Seul le premier téléchargement depuis un navigateur est concerné, et l'avertissement diminue à mesure que l'exe est téléchargé.
+- Un **certificat auto-signé** ne sert à rien : Windows ne lui fait pas confiance.
 
 ## Licences tierces
 

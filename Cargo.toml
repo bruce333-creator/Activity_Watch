@@ -1,6 +1,6 @@
 [package]
 name = "activity-tracker"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 description = "Lightweight Windows screen-time and activity tracker"
 
@@ -16,6 +16,7 @@ windows = { version = "0.62.2", features = [
     "Win32_Foundation",
     "Win32_Globalization",
     "Win32_Graphics_Gdi",
+    "Win32_Networking_WinHttp",
     "Win32_Security",
     "Win32_System_Console",
     "Win32_System_LibraryLoader",
