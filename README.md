@@ -198,6 +198,8 @@ Runs the collector for 15 seconds against an in-memory database (your data is no
    git push origin v0.6.0
    ```
 
+Or, without git tags: GitHub → **Actions** → **build** → **Run workflow**, tick **Publish a Release**. The tag `v<version>` is created on that commit.
+
 GitHub Actions builds the exe, tests it and creates the **Release** with the exe and release notes. As soon as it is published, every installed copy offers it within 24 h. It is free (Actions and Releases are free for a public repository).
 
 Rules:
