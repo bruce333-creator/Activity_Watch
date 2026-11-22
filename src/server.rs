@@ -13,6 +13,8 @@ use tiny_http::{Header, Response, Server};
 pub const PAGE: &str = include_str!("../assets/dashboard.html");
 const LOGO_PNG: &[u8] = include_bytes!("../assets/logo.png");
 const FAVICON: &[u8] = include_bytes!("../assets/app.ico");
+const FONT_LATIN: &[u8] = include_bytes!("../assets/fonts/manrope-latin-wght-normal.woff2");
+const FONT_LATIN_EXT: &[u8] = include_bytes!("../assets/fonts/manrope-latin-ext-wght-normal.woff2");
 
 /// Turns an exe path into a PNG of its icon (Windows only; `None` elsewhere).
 pub type IconFn = fn(&str) -> Option<Vec<u8>>;
@@ -215,6 +217,20 @@ pub fn serve(db_path: &Path, mut cfg: Config, lang: Lang, icon: Option<IconFn>) 
             }
             "/favicon.ico" => {
                 req.respond(Response::from_data(FAVICON).with_header(header("image/x-icon")))
+            }
+            "/fonts/manrope-latin.woff2" | "/fonts/manrope-latin-ext.woff2" => {
+                let data = if path.ends_with("ext.woff2") {
+                    FONT_LATIN_EXT
+                } else {
+                    FONT_LATIN
+                };
+                req.respond(
+                    Response::from_data(data)
+                        .with_header(header("font/woff2"))
+                        .with_header(
+                            Header::from_bytes("Cache-Control", "max-age=31536000").unwrap(),
+                        ),
+                )
             }
             "/api/summary" => {
                 let range = query_param(&url, "range").unwrap_or("today");

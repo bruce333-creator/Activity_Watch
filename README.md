@@ -184,6 +184,10 @@ git push origin v0.4.0
 - **Antivirus** : en cas de faux positif, soumettez l'exe à Microsoft (Microsoft Security Intelligence, « Submit a file »).
 - **Plus tard** : publication sur `winget` (le gestionnaire de paquets de Windows), qui permet `winget install` et les mises à jour en une commande.
 
+## Licences tierces
+
+La police [Manrope](https://github.com/sharanda/manrope) est intégrée dans l'exe sous licence SIL Open Font License 1.1 (`assets/fonts/OFL-Manrope.txt`), qui autorise sa redistribution avec le logiciel.
+
 ## Compiler soi-même
 
 ```
@@ -203,4 +207,4 @@ Le résultat est `target\release\activity-tracker.exe`. Le code Win32 se trouve 
 | `src/config.rs` | `config.toml` |
 | `src/probe.rs` | Interface `SystemProbe` (+ sonde factice pour les tests) |
 | `src/win.rs` | Win32 : fenêtre au premier plan et titre, inactivité, verrouillage, icônes des .exe, zone de notification et notifications, fenêtre Edge, registre |
-| `assets/` | Page du tableau de bord, logo et icônes (intégrés dans l'exe via `build.rs`, qui ajoute aussi les infos de version) |
+| `assets/` | Page du tableau de bord, logo, icônes et police Manrope (intégrés dans l'exe ; `build.rs` ajoute aussi les infos de version) |
