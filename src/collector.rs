@@ -282,6 +282,8 @@ impl<P: SystemProbe> Collector<P> {
     fn flush(&mut self, now: i64) -> rusqlite::Result<()> {
         self.last_flush = now;
         self.offset = self.store.local_offset();
+        // Names changed in the dashboard (used by app limits).
+        self.cfg.renames = self.store.renames();
         if let Some(o) = &self.open {
             self.store.set_end(o.id, now)?;
         }

@@ -115,6 +115,9 @@ pub struct Config {
     pub web_port: u16,
     pub app_limits: HashMap<String, u64>,
     pub friendly_names: HashMap<String, String>,
+    /// Names chosen in the dashboard (original name -> new name), loaded from the database.
+    #[serde(skip)]
+    pub renames: HashMap<String, String>,
 }
 
 impl Default for Config {
@@ -163,12 +166,18 @@ impl Config {
         }
     }
 
-    /// Display name; the grouping key of the dashboard.
-    pub fn friendly(&self, process: &str) -> String {
+    /// Name before any rename made in the dashboard: the key of renames and custom logos.
+    pub fn original_name(&self, process: &str) -> String {
         self.friendly_names
             .get(process)
             .cloned()
             .unwrap_or_else(|| process.strip_suffix(".exe").unwrap_or(process).to_string())
+    }
+
+    /// Display name; the grouping key of the dashboard. Apps renamed to the same name are merged.
+    pub fn friendly(&self, process: &str) -> String {
+        let name = self.original_name(process);
+        self.renames.get(&name).cloned().unwrap_or(name)
     }
 
     pub fn is_ignored(&self, process: &str) -> bool {
@@ -212,6 +221,7 @@ impl Config {
             web_port: 8765,
             app_limits: HashMap::new(),
             friendly_names: HashMap::new(),
+            renames: HashMap::new(),
         }
     }
 }
@@ -263,6 +273,15 @@ mod tests {
                 .is_focus_app("Blender")
         );
         assert_eq!(Config::default().break_reminder_minutes, 60);
+    }
+
+    #[test]
+    fn renames_apply_to_all_processes_of_an_app() {
+        let mut c = Config::default();
+        c.renames.insert("Maya".into(), "Maya 2025".into());
+        assert_eq!(c.friendly("mayabatch.exe"), "Maya 2025");
+        assert_eq!(c.original_name("maya.exe"), "Maya");
+        assert_eq!(c.friendly("chrome.exe"), "Chrome");
     }
 
     #[test]

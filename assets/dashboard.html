@@ -23,12 +23,13 @@ body { margin: 0; color: var(--text); font: 14px/1.55 var(--font); -webkit-font-
   background-attachment: fixed; }
 a { color: inherit; }
 main { max-width: 1100px; margin: 0 auto; padding: 0 16px 56px; }
-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; height: 64px; margin-bottom: 28px; }
-.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+header { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; height: 64px; margin-bottom: 28px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; white-space: nowrap; }
 .brand img { width: 30px; height: 30px; }
 .brand b { font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
 .brand small { color: var(--muted); font-size: 12px; margin-left: 4px; }
-nav { display: flex; gap: 4px; }
+nav { display: flex; gap: 4px; justify-self: center; }
+@media (max-width: 1180px) { .brand small { display: none; } }
 nav a { color: var(--text-2); text-decoration: none; padding: 7px 14px; border-radius: 999px; font-weight: 500; border: 1px solid transparent; white-space: nowrap; transition: color .15s; }
 nav a:hover { color: var(--text); }
 nav a.on { color: var(--text); border-color: var(--line-2); background: rgba(255,255,255,.03); }
@@ -121,6 +122,24 @@ section.block { margin-top: 36px; }
 .top1 .avatar img { width: 48px; height: 48px; }
 .move { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
 .move .d { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+.edit { opacity: 0; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 15px; padding: 2px 6px; border-radius: 6px; }
+.item:hover .edit, .edit:focus-visible { opacity: 1; } .edit:hover { color: var(--text); background: var(--card-2); }
+@media (hover: none) { .edit { opacity: 1; } }
+.name .nm { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
+dialog { background: var(--card); color: var(--text); border: 1px solid var(--line-2); border-radius: 16px; padding: 26px; width: min(440px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0,0,0,.6); }
+dialog h2 { font-size: 20px; margin-bottom: 4px; }
+dialog .preview { display: flex; align-items: center; gap: 16px; margin: 20px 0; }
+dialog .preview .avatar { width: 64px; height: 64px; border-radius: 16px; font-size: 26px; }
+dialog .preview .avatar img { width: 56px; height: 56px; }
+dialog label { display: block; color: var(--text-2); font-size: 13px; margin: 4px 0 6px; }
+dialog input[type=text] { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line-2); border-radius: 10px; padding: 10px 12px; font: 15px var(--font); }
+dialog input[type=text]:focus { outline: none; border-color: #555; }
+.linkbtn { background: none; border: 0; color: var(--text-2); font: 13px var(--font); cursor: pointer; padding: 0; text-decoration: underline; }
+.btn.small { padding: 7px 12px; font-size: 13px; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; }
+.err { color: #ef6b6b; font-size: 13px; min-height: 18px; margin-top: 8px; }
+.applist .item { grid-template-columns: 32px 1fr auto; }
 footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; color: var(--muted); font-size: 12.5px; }
 footer a { color: var(--text-2); }
 </style>
@@ -139,12 +158,30 @@ footer a { color: var(--text-2); }
   </footer>
 </main>
 <div id="tip"></div>
+<dialog id="editor">
+  <form method="dialog" id="edit-form">
+    <h2 id="ed-title"></h2><p class="hint-line" id="ed-hint" style="margin:0"></p>
+    <div class="preview"><div id="ed-avatar"></div>
+      <div><button type="button" class="btn ghost small" id="ed-pick"></button><br>
+        <button type="button" class="linkbtn" id="ed-reset-logo" style="margin-top:8px"></button></div>
+      <input type="file" id="ed-file" accept="image/*,.ico,.svg" hidden></div>
+    <label for="ed-name" id="ed-name-label"></label><input type="text" id="ed-name" maxlength="60" autocomplete="off">
+    <div style="margin-top:8px"><button type="button" class="linkbtn" id="ed-reset-name"></button></div>
+    <div class="err" id="ed-err"></div>
+    <div class="actions"><button type="button" class="btn ghost" id="ed-cancel"></button><button type="submit" class="btn" id="ed-save"></button></div>
+  </form>
+</dialog>
 
 <script>
 // ---------------------------------------------------------------- i18n
 const I18N = {
   fr: {
-    nav: { today: "Aujourd'hui", week: 'Semaine', month: 'Mois', year: 'Année', wrapped: 'Wrapped' },
+    nav: { today: "Aujourd'hui", week: 'Semaine', month: 'Mois', year: 'Année', wrapped: 'Wrapped', apps: 'Applis' },
+    edit: 'Personnaliser', editHint: "Le nom et le logo sont enregistrés sur ce PC et restent après une mise à jour. Donner le même nom à deux applis les regroupe.",
+    pickLogo: 'Changer le logo…', resetLogo: "Remettre le logo d'origine", nameLabel: 'Nom affiché', resetName: key => `Remettre le nom d'origine (${key})`,
+    cancel: 'Annuler', save: 'Enregistrer', badImage: "Cette image n'a pas pu être lue.", saveError: "L'enregistrement a échoué : ",
+    appsTitle: 'Tes applis', appsLead: 'Renomme une appli ou change son logo. Tout est enregistré sur ce PC.', original: o => `d'origine : ${o}`,
+    customLogo: 'logo personnalisé', noApps: 'Aucune appli enregistrée pour l’instant.',
     titles: { today: "Aujourd'hui", week: 'Cette semaine', month: 'Ce mois-ci' },
     lead: { today: "Ton temps d'écran, appli par appli.", week: 'Ta semaine en un coup d’œil.', month: 'Ton mois en un coup d’œil.' },
     screen: "Temps d'écran", vs: { today: 'vs hier à la même heure', week: 'vs la semaine dernière', month: 'vs le mois dernier' },
@@ -188,7 +225,12 @@ const I18N = {
     locale: 'fr-FR', min: 'min', h: 'h', lessThanMin: '< 1 min',
   },
   en: {
-    nav: { today: 'Today', week: 'Week', month: 'Month', year: 'Year', wrapped: 'Wrapped' },
+    nav: { today: 'Today', week: 'Week', month: 'Month', year: 'Year', wrapped: 'Wrapped', apps: 'Apps' },
+    edit: 'Customize', editHint: 'The name and logo are saved on this PC and survive updates. Giving two apps the same name merges them.',
+    pickLogo: 'Change logo…', resetLogo: 'Restore the original logo', nameLabel: 'Display name', resetName: key => `Restore the original name (${key})`,
+    cancel: 'Cancel', save: 'Save', badImage: 'This image could not be read.', saveError: 'Saving failed: ',
+    appsTitle: 'Your apps', appsLead: 'Rename an app or change its logo. Everything is saved on this PC.', original: o => `originally: ${o}`,
+    customLogo: 'custom logo', noApps: 'No app recorded yet.',
     titles: { today: 'Today', week: 'This week', month: 'This month' },
     lead: { today: 'Your screen time, app by app.', week: 'Your week at a glance.', month: 'Your month at a glance.' },
     screen: 'Screen time', vs: { today: 'vs yesterday, same time', week: 'vs last week', month: 'vs last month' },
@@ -250,12 +292,12 @@ function fmtBig(s) {
 }
 const clock = t => t == null ? '–' : `${String(Math.floor(t / 3600) % 24).padStart(2, '0')}:${String(Math.floor(t % 3600 / 60)).padStart(2, '0')}`;
 const day = (label, opts) => new Date(label + 'T12:00').toLocaleDateString(T.locale, opts);
-let colors = {};
+let colors = {}, ICON_V = Date.now();
 function setColors(names) { colors = {}; names.forEach((n, i) => colors[n] = PALETTE[i % PALETTE.length]); }
 const color = name => colors[name] || '#555';
 function avatar(a) {
   // The app's real icon when available, its initial otherwise.
-  return `<div class="avatar" style="background:${color(a.name)}"><img src="/icon/${encodeURIComponent(a.process)}" alt=""
+  return `<div class="avatar" style="background:${color(a.name)}"><img src="/icon/${encodeURIComponent(a.process)}?v=${ICON_V}" alt=""
     onload="this.parentNode.style.background='transparent';this.nextSibling.remove()" onerror="this.remove()"><span>${esc((a.name[0] || '?').toUpperCase())}</span></div>`;
 }
 function delta(cur, prev, what) {
@@ -291,10 +333,11 @@ function appList(apps, total) {
   if (!shown.length) return `<div class="empty">${T.empty}</div>`;
   const max = shown[0].seconds;
   return `<div class="list">${shown.map(a => `<div class="item">${avatar(a)}
-    <div><div class="name">${esc(a.name)}<em>${total ? Math.round(100 * a.seconds / total) : 0} %</em></div>
+    <div><div class="name"><span class="nm">${esc(a.name)}${editBtn(a)}</span><em>${total ? Math.round(100 * a.seconds / total) : 0} %</em></div>
     <div class="track"><i style="width:${100 * a.seconds / max}%;background:${color(a.name)}"></i></div></div>
     <div class="t">${fmt(a.seconds)}${change(a)}</div></div>`).join('')}</div>`;
 }
+const editBtn = a => `<button class="edit" title="${esc(T.edit)}" data-edit="${esc(JSON.stringify({ key: a.key, name: a.name, process: a.process }))}">✎</button>`;
 function projectList(projects) {
   const max = projects[0].seconds;
   return `<div class="list">${projects.map(p => `<div class="item">${avatar({ name: p.app, process: p.process })}
@@ -476,7 +519,7 @@ async function shareImage() {
   g.fillStyle = '#f2f2f2'; g.font = `600 120px ${F}`; g.fillText(fmt(d.total), 74, 840);
   g.fillStyle = '#6e6e6e'; g.font = `500 28px ${F}`; g.fillText(T.top5.toUpperCase(), 80, 950);
   for (const [i, a] of d.top_apps.slice(0, 3).entries()) {
-    const y = 990 + i * 92, icon = await load('/icon/' + encodeURIComponent(a.process));
+    const y = 990 + i * 92, icon = await load('/icon/' + encodeURIComponent(a.process) + '?v=' + ICON_V);
     if (icon) g.drawImage(icon, 80, y, 60, 60);
     else { g.fillStyle = color(a.name); g.beginPath(); g.roundRect(80, y, 60, 60, 14); g.fill(); g.fillStyle = '#fff'; g.font = `600 30px ${F}`; g.fillText(a.name[0].toUpperCase(), 100, y + 41); }
     g.fillStyle = '#f2f2f2'; g.font = `500 40px ${F}`; g.fillText(a.name, 166, y + 44);
@@ -486,12 +529,89 @@ async function shareImage() {
   const a = document.createElement('a'); a.download = `wrapped-${d.from}.png`; a.href = c.toDataURL('image/png'); a.click();
 }
 
+// ---------------------------------------------------------------- apps & customization
+async function showApps() {
+  const apps = await getJSON('/api/apps');
+  setColors(apps.map(a => a.name));
+  $('#period').textContent = '';
+  $('#view').innerHTML = `<h1 class="title">${T.appsTitle}</h1><p class="lead">${T.appsLead}</p>
+    <div class="card">${apps.length ? `<div class="list applist">${apps.map(a => `<div class="item">${avatar(a)}
+      <div><div class="name"><span class="nm">${esc(a.name)}</span><em>${a.renamed ? esc(T.original(a.key)) + ' · ' : ''}${esc(a.process)}${a.custom_icon ? ' · ' + T.customLogo : ''}</em></div></div>
+      <button class="btn ghost small" data-edit="${esc(JSON.stringify({ key: a.key, name: a.name, process: a.process }))}">${T.edit}</button></div>`).join('')}</div>`
+      : `<div class="empty">${T.noApps}</div>`}</div>`;
+}
+
+const WRITE = { 'X-Activity-Tracker': '1' };
+let editing = null, newLogo = null, resetLogo = false;
+function editorAvatar() {
+  const a = { name: $('#ed-name').value || editing.key, process: editing.process };
+  $('#ed-avatar').innerHTML = avatar(a);
+  if (newLogo || resetLogo) {
+    const img = $('#ed-avatar img');
+    if (img) img.src = newLogo ? URL.createObjectURL(newLogo) : `/icon/${encodeURIComponent(editing.process)}?v=${ICON_V}&original=1`;
+  }
+}
+function openEditor(a) {
+  editing = a; newLogo = null; resetLogo = false;
+  $('#ed-title').textContent = T.edit; $('#ed-hint').textContent = T.editHint;
+  $('#ed-pick').textContent = T.pickLogo; $('#ed-reset-logo').textContent = T.resetLogo;
+  $('#ed-name-label').textContent = T.nameLabel; $('#ed-reset-name').textContent = T.resetName(a.key);
+  $('#ed-cancel').textContent = T.cancel; $('#ed-save').textContent = T.save;
+  $('#ed-name').value = a.name; $('#ed-err').textContent = '';
+  editorAvatar();
+  $('#editor').showModal();
+}
+// Any image (PNG, JPG, SVG, ICO, WebP…) becomes a 128x128 PNG, centered and uncropped.
+function toLogoPng(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+      const w = img.naturalWidth || S, h = img.naturalHeight || S, k = S / Math.max(w, h);
+      c.getContext('2d').drawImage(img, (S - w * k) / 2, (S - h * k) / 2, w * k, h * k);
+      c.toBlob(b => b ? resolve(b) : reject(), 'image/png');
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+$('#ed-pick').onclick = () => $('#ed-file').click();
+$('#ed-file').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try { newLogo = await toLogoPng(f); resetLogo = false; $('#ed-err').textContent = ''; editorAvatar(); }
+  catch { $('#ed-err').textContent = T.badImage; }
+};
+$('#ed-reset-logo').onclick = () => { resetLogo = true; newLogo = null; editorAvatar(); };
+$('#ed-reset-name').onclick = () => { $('#ed-name').value = editing.key; editorAvatar(); };
+$('#ed-name').oninput = editorAvatar;
+$('#ed-cancel').onclick = () => $('#editor').close();
+$('#edit-form').onsubmit = async e => {
+  e.preventDefault();
+  const send = async (url, opts) => { const r = await fetch(url, opts); if (!r.ok) throw new Error(await r.text()); };
+  try {
+    const name = $('#ed-name').value.trim();
+    if (name !== editing.name) await send('/api/apps/rename', { method: 'POST', headers: { ...WRITE, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: editing.key, name: name === editing.key ? '' : name }) });
+    const iconUrl = '/api/apps/icon?key=' + encodeURIComponent(editing.key);
+    if (newLogo) await send(iconUrl, { method: 'POST', headers: { ...WRITE, 'Content-Type': 'image/png' }, body: newLogo });
+    else if (resetLogo) await send(iconUrl, { method: 'DELETE', headers: WRITE });
+    ICON_V = Date.now();
+    $('#editor').close();
+    route();
+  } catch (err) { $('#ed-err').textContent = T.saveError + err.message; }
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-edit]');
+  if (b) openEditor(JSON.parse(b.dataset.edit));
+});
+
 // ---------------------------------------------------------------- router
-const VIEWS = ['today', 'week', 'month', 'year', 'wrapped'];
+const VIEWS = ['today', 'week', 'month', 'year', 'wrapped', 'apps'];
 function route() {
   const r = (location.hash || '#today').slice(1), view = VIEWS.includes(r) ? r : 'today';
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.hash === '#' + view));
-  const p = view === 'wrapped' ? showWrapped() : view === 'year' ? showYear() : showRange(view);
+  const p = { wrapped: showWrapped, year: showYear, apps: showApps }[view]?.() ?? showRange(view);
   p.catch(() => $('#view').innerHTML = `<div class="card empty">${T.offline}</div>`);
 }
 async function init() {
@@ -504,7 +624,7 @@ async function init() {
   $('#foot-version').textContent = 'v' + (CONF.version || '');
   window.addEventListener('hashchange', route);
   route();
-  setInterval(() => { if (!document.hidden && !['#wrapped', '#year'].includes(location.hash)) route(); }, 60000);
+  setInterval(() => { if (!document.hidden && !$('#editor').open && !['#wrapped', '#year', '#apps'].includes(location.hash)) route(); }, 60000);
 }
 init();
 

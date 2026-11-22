@@ -18,6 +18,8 @@ pub struct AppTime {
     pub name: String,
     /// The process with the most time in this group (used for the icon).
     pub process: String,
+    /// Original name (before a rename made in the dashboard): key of renames and logos.
+    pub key: String,
     pub seconds: i64,
     /// Same app over the previous comparable period.
     pub previous: i64,
@@ -243,6 +245,7 @@ pub fn analyze(
         apps: group(apps)
             .into_iter()
             .map(|(name, process, seconds)| AppTime {
+                key: cfg.original_name(&process),
                 name,
                 process,
                 seconds,
@@ -688,6 +691,7 @@ mod tests {
         assert_eq!(s.apps[0].name, "Maya");
         assert_eq!(s.apps[0].seconds, 2 * 3600 + min(30));
         assert_eq!(s.apps[0].process, "maya.exe");
+        assert_eq!(s.apps[0].key, "Maya");
         // Maya blocks touch: one segment, then Chrome.
         assert_eq!(s.segments.len(), 2);
         assert_eq!(
@@ -753,6 +757,21 @@ mod tests {
         assert_eq!(d.projects[0].seconds, 2 * 3600 + min(30));
         assert_eq!(d.limits.len(), 1);
         assert_eq!((d.limits[0].limit, d.limits[0].seconds), (min(20), min(30)));
+    }
+
+    #[test]
+    fn renamed_apps_keep_their_key_and_can_be_merged() {
+        let mut cfg = Config::default();
+        cfg.renames.insert("Maya".into(), "3D".into());
+        cfg.renames.insert("Blender".into(), "3D".into());
+        let s = summarize(&sample(), "week", at(0, 20), OFF, &cfg);
+        let three_d = s.apps.iter().find(|a| a.name == "3D").unwrap();
+        assert_eq!(three_d.seconds, 2 * 3600 + min(30) + 4 * 3600 + 3600);
+        assert!(
+            !s.apps
+                .iter()
+                .any(|a| a.name == "Maya" || a.name == "Blender")
+        );
     }
 
     #[test]

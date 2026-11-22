@@ -103,8 +103,73 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// JSON body for /api/apps: every app ever recorded, with its customization.
+pub fn apps_json(store: &Store, cfg: &Config) -> String {
+    let mut seen: HashMap<String, serde_json::Value> = HashMap::new();
+    for p in store.processes().unwrap_or_default() {
+        let key = cfg.original_name(&p);
+        seen.entry(key.clone()).or_insert_with(|| {
+            serde_json::json!({
+                "key": key,
+                "name": cfg.friendly(&p),
+                "process": p,
+                "renamed": cfg.renames.contains_key(&key),
+                "custom_icon": store.custom_icon(&key).is_some(),
+            })
+        });
+    }
+    let mut apps: Vec<_> = seen.into_values().collect();
+    apps.sort_by_key(|a| a["name"].as_str().unwrap_or("").to_lowercase());
+    serde_json::Value::Array(apps).to_string()
+}
+
+pub const MAX_ICON_BYTES: usize = 1024 * 1024;
+
+/// Content type of an uploaded logo, from its first bytes. Only images are accepted.
+pub fn image_type(data: &[u8]) -> Option<&'static str> {
+    let head = String::from_utf8_lossy(&data[..data.len().min(512)]).to_ascii_lowercase();
+    match data {
+        [0x89, b'P', b'N', b'G', ..] => Some("image/png"),
+        [0xFF, 0xD8, 0xFF, ..] => Some("image/jpeg"),
+        [b'G', b'I', b'F', b'8', ..] => Some("image/gif"),
+        [
+            b'R',
+            b'I',
+            b'F',
+            b'F',
+            _,
+            _,
+            _,
+            _,
+            b'W',
+            b'E',
+            b'B',
+            b'P',
+            ..,
+        ] => Some("image/webp"),
+        [0, 0, 1, 0, ..] => Some("image/x-icon"),
+        _ if head.contains("<svg") => Some("image/svg+xml"),
+        _ => None,
+    }
+}
+
+/// Changes coming from another website must be refused: the page sends a custom header
+/// (which browsers only allow cross-site after a CORS check this server never grants),
+/// and the Host must be this machine (protects against DNS rebinding).
+fn is_trusted_write(req: &tiny_http::Request, port: u16) -> bool {
+    let header = |name: &str| {
+        req.headers()
+            .iter()
+            .find(|h| h.field.as_str().as_str().eq_ignore_ascii_case(name))
+            .map(|h| h.value.as_str().to_string())
+    };
+    let host_ok = header("Host")
+        .is_some_and(|h| h == format!("127.0.0.1:{port}") || h == format!("localhost:{port}"));
+    host_ok && header("X-Activity-Tracker").as_deref() == Some("1")
+}
+
 /// Serves forever on the calling thread.
-pub fn serve(db_path: &Path, cfg: Config, lang: Lang, icon: Option<IconFn>) {
+pub fn serve(db_path: &Path, mut cfg: Config, lang: Lang, icon: Option<IconFn>) {
     let addr = format!("127.0.0.1:{}", cfg.web_port);
     let server = match Server::http(&addr) {
         Ok(s) => s,
@@ -122,11 +187,24 @@ pub fn serve(db_path: &Path, cfg: Config, lang: Lang, icon: Option<IconFn>) {
     };
     dlog!("dashboard listening on http://{addr}");
     let header = |v: &str| Header::from_bytes("Content-Type", v).unwrap();
-    let cache_forever = Header::from_bytes("Cache-Control", "max-age=86400").unwrap();
+    let no_cache = Header::from_bytes("Cache-Control", "no-cache").unwrap();
+    // Uploaded SVG logos may contain scripts: never run anything from an icon URL.
+    let icon_csp = Header::from_bytes(
+        "Content-Security-Policy",
+        "default-src 'none'; style-src 'unsafe-inline'",
+    )
+    .unwrap();
+    let nosniff = Header::from_bytes("X-Content-Type-Options", "nosniff").unwrap();
     let mut icons: HashMap<String, Option<Vec<u8>>> = HashMap::new();
 
-    for req in server.incoming_requests() {
+    for mut req in server.incoming_requests() {
+        cfg.renames = store.renames();
         let url = req.url().to_string();
+        let method = req.method().clone();
+        if method != tiny_http::Method::Get && !is_trusted_write(&req, cfg.web_port) {
+            let _ = req.respond(Response::from_string("forbidden").with_status_code(403));
+            continue;
+        }
         let path = url.split('?').next().unwrap_or("");
         let res = match path {
             "/" | "/index.html" => req.respond(
@@ -178,17 +256,96 @@ pub fn serve(db_path: &Path, cfg: Config, lang: Lang, icon: Option<IconFn>) {
                 let body = wrapped_json(&store, &cfg, weeks_ago, now_unix());
                 req.respond(Response::from_string(body).with_header(header("application/json")))
             }
+            "/api/apps" => req.respond(
+                Response::from_string(apps_json(&store, &cfg))
+                    .with_header(header("application/json")),
+            ),
+            "/api/apps/rename" if method == tiny_http::Method::Post => {
+                let mut body = String::new();
+                let _ = std::io::Read::read_to_string(
+                    &mut std::io::Read::take(req.as_reader(), 4096),
+                    &mut body,
+                );
+                let v: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+                let key = v["key"].as_str().unwrap_or("").trim();
+                let name = v["name"]
+                    .as_str()
+                    .map(str::trim)
+                    .filter(|n| !n.is_empty() && *n != key);
+                let ok = !key.is_empty() && name.is_none_or(|n| n.chars().count() <= 60);
+                if ok && store.set_rename(key, name).is_ok() {
+                    dlog!("app renamed: {key} -> {}", name.unwrap_or(key));
+                    req.respond(Response::from_string("ok"))
+                } else {
+                    req.respond(Response::from_string("bad request").with_status_code(400))
+                }
+            }
+            "/api/apps/icon"
+                if method == tiny_http::Method::Post || method == tiny_http::Method::Delete =>
+            {
+                let key = query_param(&url, "key")
+                    .map(percent_decode)
+                    .unwrap_or_default();
+                let mut data = Vec::new();
+                let _ = std::io::Read::read_to_end(
+                    &mut std::io::Read::take(req.as_reader(), MAX_ICON_BYTES as u64 + 1),
+                    &mut data,
+                );
+                let result = if key.is_empty() {
+                    Err("missing key")
+                } else if method == tiny_http::Method::Delete {
+                    store
+                        .set_custom_icon(&key, None)
+                        .map_err(|_| "database error")
+                } else if data.len() > MAX_ICON_BYTES {
+                    Err("image too large (max 1 MB)")
+                } else {
+                    match image_type(&data) {
+                        Some(kind) => store
+                            .set_custom_icon(&key, Some((&data, kind)))
+                            .map_err(|_| "database error"),
+                        None => Err("not an image (PNG, JPG, GIF, WebP, ICO or SVG)"),
+                    }
+                };
+                match result {
+                    Ok(()) => {
+                        dlog!(
+                            "app logo {}: {key}",
+                            if method == tiny_http::Method::Delete {
+                                "reset"
+                            } else {
+                                "changed"
+                            }
+                        );
+                        req.respond(Response::from_string("ok"))
+                    }
+                    Err(e) => req.respond(Response::from_string(e).with_status_code(400)),
+                }
+            }
             p if p.starts_with("/icon/") => {
                 let process = percent_decode(&p["/icon/".len()..]).to_lowercase();
-                let png = icons
-                    .entry(process.clone())
-                    .or_insert_with(|| icon.and_then(|f| f(&store.app_path(&process)?)))
-                    .clone();
-                match png {
-                    Some(png) => req.respond(
-                        Response::from_data(png)
-                            .with_header(header("image/png"))
-                            .with_header(cache_forever.clone()),
+                // A logo chosen in the dashboard wins over the exe's own icon.
+                let custom = match query_param(&url, "original") {
+                    Some(_) => None, // preview of the app's own icon
+                    None => store.custom_icon(&cfg.original_name(&process)),
+                };
+                let (data, kind) = match custom {
+                    Some((data, kind)) => (Some(data), kind),
+                    None => (
+                        icons
+                            .entry(process.clone())
+                            .or_insert_with(|| icon.and_then(|f| f(&store.app_path(&process)?)))
+                            .clone(),
+                        "image/png".to_string(),
+                    ),
+                };
+                match data {
+                    Some(data) => req.respond(
+                        Response::from_data(data)
+                            .with_header(header(&kind))
+                            .with_header(no_cache.clone())
+                            .with_header(icon_csp.clone())
+                            .with_header(nosniff.clone()),
                     ),
                     None => req.respond(Response::from_string("no icon").with_status_code(404)),
                 }
@@ -240,6 +397,44 @@ mod tests {
         let y: serde_json::Value =
             serde_json::from_str(&year_json(&store, &Config::default(), now)).unwrap();
         assert!(y["days"].as_array().unwrap().len() >= 52 * 7);
+    }
+
+    #[test]
+    fn image_types() {
+        assert_eq!(image_type(b"\x89PNG\r\n\x1a\n...."), Some("image/png"));
+        assert_eq!(image_type(b"\xff\xd8\xff\xe0"), Some("image/jpeg"));
+        assert_eq!(image_type(b"RIFF1234WEBPVP8 "), Some("image/webp"));
+        assert_eq!(
+            image_type(b"<?xml version=\"1.0\"?><svg xmlns=..."),
+            Some("image/svg+xml")
+        );
+        assert_eq!(image_type(b"MZ\x90\x00 not an image"), None);
+    }
+
+    #[test]
+    fn apps_list_merges_processes_and_shows_custom_names() {
+        let store = Store::open_in_memory().unwrap();
+        store.insert(0, 10, "maya.exe", None).unwrap();
+        store.insert(10, 20, "mayabatch.exe", None).unwrap();
+        store.insert(20, 30, "chrome.exe", None).unwrap();
+        store.set_rename("Chrome", Some("Web")).unwrap();
+        store
+            .set_custom_icon("Maya", Some((b"\x89PNG", "image/png")))
+            .unwrap();
+        let mut cfg = Config::default();
+        cfg.renames = store.renames();
+        let v: serde_json::Value = serde_json::from_str(&apps_json(&store, &cfg)).unwrap();
+        let apps = v.as_array().unwrap();
+        assert_eq!(apps.len(), 2, "maya.exe and mayabatch.exe are one app");
+        assert_eq!(
+            (apps[0]["key"].as_str(), apps[0]["name"].as_str()),
+            (Some("Maya"), Some("Maya"))
+        );
+        assert_eq!(apps[0]["custom_icon"], true);
+        assert_eq!(
+            (apps[1]["key"].as_str(), apps[1]["name"].as_str()),
+            (Some("Chrome"), Some("Web"))
+        );
     }
 
     #[test]

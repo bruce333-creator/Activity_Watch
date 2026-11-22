@@ -1,6 +1,7 @@
 //! SQLite storage (WAL). One row per session. Platform independent.
 
 use rusqlite::{Connection, OptionalExtension, params};
+use std::collections::HashMap;
 use std::path::Path;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,6 +43,11 @@ impl Store {
              CREATE TABLE IF NOT EXISTS apps(
                  process TEXT PRIMARY KEY,
                  path TEXT NOT NULL);
+             CREATE TABLE IF NOT EXISTS app_custom(
+                 key TEXT PRIMARY KEY,
+                 name TEXT,
+                 icon BLOB,
+                 icon_type TEXT);
              CREATE TABLE IF NOT EXISTS meta(
                  key TEXT PRIMARY KEY,
                  value TEXT NOT NULL);",
@@ -118,6 +124,64 @@ impl Store {
         rows.collect()
     }
 
+    /// Every process ever recorded.
+    pub fn processes(&self) -> rusqlite::Result<Vec<String>> {
+        let mut st = self.conn.prepare(
+            "SELECT DISTINCT process FROM sessions WHERE kind = 'active' ORDER BY process",
+        )?;
+        let rows = st.query_map([], |r| r.get(0))?;
+        rows.collect()
+    }
+
+    /// Renames made in the dashboard: original name -> new name.
+    pub fn renames(&self) -> HashMap<String, String> {
+        let mut out = HashMap::new();
+        if let Ok(mut st) = self
+            .conn
+            .prepare_cached("SELECT key, name FROM app_custom WHERE name IS NOT NULL")
+        {
+            if let Ok(rows) =
+                st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+            {
+                out.extend(rows.flatten());
+            }
+        }
+        out
+    }
+
+    /// `None` restores the original name.
+    pub fn set_rename(&self, key: &str, name: Option<&str>) -> rusqlite::Result<()> {
+        self.conn.execute(
+            "INSERT INTO app_custom(key, name) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET name = excluded.name",
+            params![key, name],
+        )?;
+        Ok(())
+    }
+
+    /// Custom logo of an app: (bytes, content type).
+    pub fn custom_icon(&self, key: &str) -> Option<(Vec<u8>, String)> {
+        self.conn
+            .query_row(
+                "SELECT icon, icon_type FROM app_custom WHERE key = ?1 AND icon IS NOT NULL",
+                [key],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .ok()
+            .flatten()
+    }
+
+    /// `None` restores the app's own icon.
+    pub fn set_custom_icon(&self, key: &str, icon: Option<(&[u8], &str)>) -> rusqlite::Result<()> {
+        let (data, kind) = icon.map_or((None, None), |(d, k)| (Some(d), Some(k)));
+        self.conn.execute(
+            "INSERT INTO app_custom(key, icon, icon_type) VALUES (?1, ?2, ?3)
+             ON CONFLICT(key) DO UPDATE SET icon = excluded.icon, icon_type = excluded.icon_type",
+            params![key, data, kind],
+        )?;
+        Ok(())
+    }
+
     pub fn meta(&self, key: &str) -> Option<String> {
         self.conn
             .query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
@@ -180,6 +244,24 @@ mod tests {
             s.sessions_between(0, 100).unwrap()[1].project.as_deref(),
             Some("robot.mb")
         );
+        s.set_rename("Maya", Some("Maya 2025")).unwrap();
+        s.set_custom_icon("Maya", Some((b"png", "image/png")))
+            .unwrap();
+        s.set_rename("Chrome", Some("Web")).unwrap();
+        s.set_rename("Chrome", None).unwrap();
+        assert_eq!(
+            s.renames(),
+            HashMap::from([("Maya".to_string(), "Maya 2025".to_string())])
+        );
+        assert_eq!(
+            s.custom_icon("Maya"),
+            Some((b"png".to_vec(), "image/png".to_string())),
+            "rename kept the icon"
+        );
+        s.set_custom_icon("Maya", None).unwrap();
+        assert_eq!(s.custom_icon("Maya"), None);
+        assert_eq!(s.renames().len(), 1, "icon reset kept the name");
+        assert_eq!(s.processes().unwrap(), vec!["maya.exe".to_string()]);
         s.set_meta("k", "1").unwrap();
         s.set_meta("k", "2").unwrap();
         assert_eq!(s.meta("k").as_deref(), Some("2"));

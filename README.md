@@ -16,9 +16,17 @@ Traceur de temps d'écran pour Windows 10/11, écrit en Rust. Il mesure **combie
 3. En bas de la page, section **Artifacts**, téléchargez **activity-tracker** (un `.zip` contenant `activity-tracker.exe`).
 4. Placez l'exe dans un dossier à vous, par ex. `C:\Outils\ActivityTracker\` (le fichier `config.toml` sera créé à côté au premier lancement).
 
-Pour une version publiée : poussez un tag `v0.3.0` (par ex.) ; l'exe est alors joint à la **Release** GitHub correspondante.
+Pour une version publiée : poussez un tag `v0.4.0` (par ex.) ; l'exe est alors joint à la **Release** GitHub correspondante (voir « Distribuer »).
 
 > Windows SmartScreen peut avertir au premier lancement car l'exe n'est pas signé : « Informations complémentaires » → « Exécuter quand même ».
+
+## Mettre à jour
+
+1. Clic droit sur l'icône → **Quitter**. Cela enregistre la session en cours.
+2. Remplacez l'ancien `activity-tracker.exe` par le nouveau, **dans le même dossier** et sous le même nom.
+3. Double-cliquez sur le nouvel exe.
+
+Ne supprimez pas `config.toml`. Vos données (historique, noms et logos personnalisés) sont dans `%APPDATA%\ActivityTracker\` et ne sont jamais touchées par une mise à jour. Le démarrage automatique continue de marcher puisque le chemin de l'exe ne change pas. La version installée est affichée en bas de la fenêtre et dans Propriétés → Détails de l'exe.
 
 ## Utilisation
 
@@ -49,6 +57,16 @@ L'interface s'ouvre dans une **fenêtre d'application** (mode « app » de Micro
 - **Exporter en CSV** (en bas de page) : toutes les sessions (début, fin, minutes, appli, processus, projet), à ouvrir dans Excel.
 
 La page se rafraîchit chaque minute ; la session en cours est écrite sur disque toutes les 60 s, et immédiatement quand Windows s'éteint.
+
+### Renommer une appli, changer son logo
+
+Bouton **✎** au survol d'une appli, ou onglet **Applis** (toutes les applis déjà vues) → **Personnaliser** :
+- **nom affiché** : il s'applique partout (listes, Wrapped, limites, export) et à tous les processus de l'appli ;
+- **logo** : PNG, JPG, SVG, ICO ou WebP, automatiquement mis à 128×128 px.
+
+Pour revenir en arrière, utilisez « Remettre le nom d'origine » et « Remettre le logo d'origine ». Donner le même nom à deux applis les regroupe (par exemple Chrome et Edge en « Web »).
+
+Tout est enregistré dans la base (`%APPDATA%\ActivityTracker\activity.db`) : c'est permanent, y compris après une mise à jour ou un redémarrage.
 
 ### Notifications
 
@@ -152,6 +170,20 @@ Fait tourner le collecteur 15 secondes sur une base en mémoire (vos données ne
 3. Votre `config.toml`.
 4. Une description : ce que vous faisiez, ce que vous attendiez, ce que le tableau de bord affiche. Si une application apparaît sous un mauvais nom, indiquez le nom exact de son processus (Gestionnaire des tâches → Détails).
 
+## Distribuer
+
+Chaque tag `v*` poussé sur GitHub crée une **Release** avec l'exe et des notes de version générées automatiquement :
+
+```
+git tag v0.4.0
+git push origin v0.4.0
+```
+
+- **Lien de téléchargement permanent** (toujours la dernière version, idéal pour le site) : `https://github.com/<compte>/<dépôt>/releases/latest/download/activity-tracker.exe`. Le dépôt doit être public pour que ce lien marche sans connexion ; sinon, hébergez l'exe sur votre site.
+- **SmartScreen** : un exe non signé affiche « Windows a protégé votre ordinateur » chez les nouveaux utilisateurs. Pour l'éviter, signez l'exe : **Azure Trusted Signing** (environ 10 $/mois, le moins cher aujourd'hui) ou un certificat de signature de code. Sans signature, l'avertissement s'atténue à mesure que l'exe est téléchargé.
+- **Antivirus** : en cas de faux positif, soumettez l'exe à Microsoft (Microsoft Security Intelligence, « Submit a file »).
+- **Plus tard** : publication sur `winget` (le gestionnaire de paquets de Windows), qui permet `winget install` et les mises à jour en une commande.
+
 ## Compiler soi-même
 
 ```
@@ -167,8 +199,8 @@ Le résultat est `target\release\activity-tracker.exe`. Le code Win32 se trouve 
 | `src/store.rs` | SQLite (WAL), une ligne par session |
 | `src/stats.rs` | Jour / semaine / mois / année, fusion des apps, projets, bien-être, focus, séries, Wrapped |\n| `src/project.rs` | Nom de la scène / du projet à partir du titre de fenêtre |\n| `src/notice.rs` | Textes des notifications et du menu (FR / EN) |
 | `src/png.rs` | Encodeur PNG minimal pour les icônes d'applications |
-| `src/server.rs` | Tableau de bord local (tiny_http, accept bloquant), export CSV |
+| `src/server.rs` | Tableau de bord local (tiny_http, accept bloquant), export CSV, noms et logos personnalisés |
 | `src/config.rs` | `config.toml` |
 | `src/probe.rs` | Interface `SystemProbe` (+ sonde factice pour les tests) |
 | `src/win.rs` | Win32 : fenêtre au premier plan et titre, inactivité, verrouillage, icônes des .exe, zone de notification et notifications, fenêtre Edge, registre |
-| `assets/` | Page du tableau de bord, logo et icônes (intégrés dans l'exe via `build.rs`) |
+| `assets/` | Page du tableau de bord, logo et icônes (intégrés dans l'exe via `build.rs`, qui ajoute aussi les infos de version) |
