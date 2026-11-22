@@ -2,10 +2,12 @@
 
 *by Enzo Freminet · ef tools*
 
+![Activity Tracker](docs/press/01-hero.png)
+
 Traceur de temps d'écran pour Windows 10/11, écrit en Rust. Il mesure **combien de temps vous passez sur votre PC** et dans chaque application, avec un tableau de bord bien-être, un **Wrapped** chaque semaine et le temps par projet pour les artistes 3D (Maya, Blender, Houdini…).
 
 - Un seul `.exe` d'environ 2 Mo, sans installation ni dépendance (runtime C liée statiquement).
-- Pas de hook clavier/souris, pas de GPU, pas de réseau : le tableau de bord n'écoute que sur `127.0.0.1`, aucune télémétrie.
+- Pas de hook clavier/souris, pas de GPU, aucune télémétrie : le tableau de bord n'écoute que sur `127.0.0.1`. Seule connexion sortante : la vérification de mise à jour, une fois par jour (désactivable).
 - Échantillonnage toutes les 2 s par un thread endormi, priorité « inférieure à la normale » + EcoQoS (Windows 11).
 - Les données restent chez vous : `%APPDATA%\ActivityTracker\activity.db` (SQLite).
 
@@ -205,17 +207,46 @@ Règles :
 
 ### SmartScreen et antivirus
 
-Voir [Signer l'exe gratuitement](#signer-lexe-gratuitement) plus bas.
+Voir [Signer l'exe gratuitement](#signer-lexe-gratuitement-signpath-foundation) plus bas.
 
 - **Antivirus** : en cas de faux positif, soumettez l'exe à Microsoft (Microsoft Security Intelligence, « Submit a file », gratuit).
 - **Plus tard** : publication sur `winget` (le gestionnaire de paquets de Windows), qui permet `winget install`.
 
-### Signer l'exe gratuitement
+### Signer l'exe gratuitement (SignPath Foundation)
 
-- **SignPath Foundation** : signature gratuite pour les projets open source. Il faut une licence open source (MIT par exemple) dans le dépôt, un dépôt public et un build par GitHub Actions. Après acceptation, la signature s'ajoute comme une étape du workflow. Le certificat est au nom de « SignPath Foundation ». Il a déjà une réputation chez Microsoft, donc l'avertissement disparaît vite. Ce n'est pas garanti dès le premier jour.
+Le projet est sous licence MIT, donc éligible à la signature gratuite de la **SignPath Foundation** pour les logiciels open source. Le workflow est déjà prêt : il signe automatiquement chaque Release dès que les réglages ci-dessous existent. En attendant, les Releases sortent non signées et le build marche normalement.
+
+1. **Demande** : formulaire « Apply » sur https://signpath.org. Indiquez le dépôt, la licence MIT, et que le build se fait par GitHub Actions. La section *Code signing policy* plus bas est la page de politique qu'ils demandent. Activez la double authentification (2FA) sur GitHub et sur SignPath : c'est exigé.
+2. **Après acceptation**, dans SignPath (app.signpath.io) :
+   - le projet doit avoir le slug `activity-tracker` et la politique de signature `release-signing` (sinon mettez vos slugs dans les variables `SIGNPATH_PROJECT_SLUG` / `SIGNPATH_POLICY_SLUG`) ;
+   - *Artifact configuration* : collez `.signpath/artifact-configuration.xml` ;
+   - ajoutez GitHub comme *Trusted build system* et liez-le au projet ;
+   - créez un utilisateur CI (*Users → Add CI user*) et copiez son **API token**.
+3. **Dans GitHub** (dépôt → Settings → Secrets and variables → Actions) :
+   - onglet *Secrets* : `SIGNPATH_API_TOKEN` = le token ;
+   - onglet *Variables* : `SIGNPATH_ORGANIZATION_ID` = l'ID d'organisation (visible dans l'URL ou les paramètres SignPath).
+4. **À chaque Release** : poussez le tag comme d'habitude. SignPath vous envoie une demande d'approbation (e-mail) : approuvez-la dans l'heure. Le build vérifie la signature puis publie l'exe signé.
+
+Autres pistes gratuites :
+
 - **Microsoft Store** : le compte développeur individuel est gratuit et le Store signe le paquet MSIX. Il n'y a alors aucun avertissement SmartScreen. Cette version demanderait des adaptations : c'est le Store qui gère les mises à jour (`check_updates = false`), et le lancement au démarrage passe par une déclaration du paquet plutôt que par le registre.
 - **Sans signature** : les mises à jour automatiques ne déclenchent pas SmartScreen. Seul le premier téléchargement depuis un navigateur est concerné, et l'avertissement diminue à mesure que l'exe est téléchargé.
 - Un **certificat auto-signé** ne sert à rien : Windows ne lui fait pas confiance.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- **Committers and reviewers**: [Enzo Freminet](https://github.com/bruce333-creator)
+- **Approvers**: [Enzo Freminet](https://github.com/bruce333-creator)
+
+Every release binary is built from this repository's source by GitHub Actions (`.github/workflows/build.yml`) and signed only after manual approval.
+
+**Privacy policy**: this program does not transfer any information to other networked systems, with one exception: once a day it asks `api.github.com` for the latest release of this project (an anonymous request carrying no personal data). The person operating it can disable this with `check_updates = false` in `config.toml`. All activity data stays on the local computer.
+
+## Licence
+
+MIT, voir [LICENSE](LICENSE).
 
 ## Licences tierces
 

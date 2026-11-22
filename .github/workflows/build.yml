@@ -10,6 +10,10 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      # Set once SignPath Foundation has accepted the project (see README, "Signer l'exe").
+      # Without it, releases are published unsigned.
+      SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,9 +49,33 @@ jobs:
           if ($p.ExitCode -ne 0) { Write-Error "selftest exit code $($p.ExitCode)"; exit 1 }
 
       - uses: actions/upload-artifact@v4
+        id: upload
         with:
           name: activity-tracker
           path: target/release/activity-tracker.exe
+
+      - name: Sign with SignPath
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNPATH_API_TOKEN != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'activity-tracker' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG || 'release-signing' }}
+          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          wait-for-completion: true
+          # Release signing is approved by hand on signpath.io: leave time for it.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed
+
+      - name: Use the signed exe
+        if: startsWith(github.ref, 'refs/tags/v') && env.SIGNPATH_API_TOKEN != ''
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature signed\activity-tracker.exe
+          "signature: $($sig.Status) / $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { Write-Error "signed exe is not valid"; exit 1 }
+          Copy-Item signed\activity-tracker.exe target\release\activity-tracker.exe -Force
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')

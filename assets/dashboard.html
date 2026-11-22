@@ -381,7 +381,7 @@ function fmt(s) {
   s = Math.round(Math.abs(s || 0));
   if (s < 60) return s > 0 ? T.lessThanMin : `0 ${T.min}`;
   const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
-  return h ? `${h} h ${String(m).padStart(2, '0')}` : `${m} ${T.min}`;
+  return h ? `${h}\u00a0h\u00a0${String(m).padStart(2, "0")}` : `${m}\u00a0${T.min}`;
 }
 function fmtBig(s) {
   s = Math.round(s);
