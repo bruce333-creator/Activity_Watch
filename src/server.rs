@@ -51,6 +51,34 @@ pub fn summary_json(store: &Store, cfg: &Config, range: &str, now: i64) -> Strin
     v.to_string()
 }
 
+const THEMES: [&str; 3] = ["default", "light", "terminal"];
+
+/// Stores the appearance choices present in `v` and restyles the taskbar widget.
+fn save_prefs(store: &Store, v: &serde_json::Value) {
+    if let Some(t) = v["theme"].as_str().filter(|t| THEMES.contains(t)) {
+        let _ = store.set_meta("theme", t);
+    }
+    if let Some(l) = v["widget_line"]
+        .as_str()
+        .filter(|l| ["app", "goal", "none"].contains(l))
+    {
+        let _ = store.set_meta("widget_line", l);
+    }
+    if let Some(b) = v["widget_bar"].as_bool() {
+        let _ = store.set_meta("widget_bar", if b { "1" } else { "0" });
+    }
+    if let Some(h) = crate::hooks::get() {
+        if let Some(on) = v["widget"].as_bool() {
+            (h.set_widget)(on);
+        }
+        (h.widget_style)(
+            &store.meta("theme").unwrap_or_default(),
+            &store.meta("widget_line").unwrap_or_default(),
+            store.meta("widget_bar").as_deref() != Some("0"),
+        );
+    }
+}
+
 fn read_json(req: &mut tiny_http::Request, limit: u64) -> serde_json::Value {
     let mut body = String::new();
     let _ =
@@ -291,6 +319,9 @@ pub fn serve(
                     "check_updates": cfg.check_updates,
                     "render_time": cfg.render_time,
                     "group_versions": cfg.group_versions,
+                    "theme": store.meta("theme").unwrap_or_else(|| "default".into()),
+                    "widget_line": store.meta("widget_line").unwrap_or_else(|| "app".into()),
+                    "widget_bar": store.meta("widget_bar").as_deref() != Some("0"),
                 });
                 req.respond(
                     Response::from_string(body.to_string()).with_header(header("application/json")),
@@ -337,6 +368,12 @@ pub fn serve(
                         .with_status_code(if ok { 200 } else { 404 }),
                 )
             }
+            // Appearance: dashboard theme and taskbar widget style.
+            "/api/prefs" if method == tiny_http::Method::Post => {
+                let v = read_json(&mut req, 512);
+                save_prefs(&store, &v);
+                req.respond(Response::from_string("ok"))
+            }
             // First-start setup: language, goal, reminders, options; then a restart applies it.
             "/api/onboarding" if method == tiny_http::Method::Post => {
                 let v = read_json(&mut req, 2048);
@@ -364,6 +401,7 @@ pub fn serve(
                     }
                 }
                 let _ = store.set_meta("onboarded", "1");
+                save_prefs(&store, &v);
                 let mut restart = false;
                 if let (Some(path), false) = (config_path, values.is_empty()) {
                     let text = std::fs::read_to_string(path)

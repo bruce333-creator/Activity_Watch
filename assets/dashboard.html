@@ -17,19 +17,24 @@
   color-scheme: dark;
   --bg: #000; --card: #1c1c1e; --card-2: #2c2c2e; --fill: rgba(255,255,255,.07); --line: rgba(255,255,255,.08);
   --text: #f5f5f7; --text-2: #a1a1a6; --muted: #6e6e73;
-  --brand: #ff7ad9; --accent: #ff7ad9;
-  --irid: linear-gradient(115deg, #5ee7ff 0%, #8f8bff 32%, #ff6ad5 64%, #ffd36e 100%); --good: #30d158; --warn: #ffd60a;
+  --brand: #bf5af2; --accent: #bf5af2; --accent-2: #8e44ff; --on-accent: #fff;
+  --irid: linear-gradient(135deg, #d59bff, #a45cff 55%, #7b3dff); --good: #30d158; --warn: #ffd60a;
+  --g1: #d59bff; --g2: #a45cff; --g3: #7b3dff;
+  --heat-1: rgba(191,90,242,.28); --heat-2: rgba(191,90,242,.5); --heat-3: rgba(191,90,242,.75); --heat-4: #d59bff;
+  --header-bg: rgba(0,0,0,.72); --pill: #3a3a3c; --bar: #e5e5ea; --btn-bg: #f5f5f7; --btn-hover: #fff; --btn-fg: #000;
+  --switch-off: #48484a; --tip-bg: rgba(44,44,46,.92); --scroll: #3a3a3c;
+  --r-card: 22px; --r-btn: 999px; --r-sm: 10px;
   --font: "Manrope", "Segoe UI", system-ui, sans-serif;
   --ease: cubic-bezier(.22, 1, .36, 1); --spring: cubic-bezier(.34, 1.56, .64, 1);
 }
 * { box-sizing: border-box; }
-html { background: var(--bg); scrollbar-color: #3a3a3c transparent; }
+html { background: var(--bg); scrollbar-color: var(--scroll) transparent; }
 body { margin: 0; color: var(--text); font: 15px/1.5 var(--font); font-feature-settings: "tnum" 0; -webkit-font-smoothing: antialiased; min-height: 100vh; background: var(--bg); }
 a { color: inherit; }
 .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
 
 /* Header: translucent, sticky, segmented control */
-header { position: sticky; top: 0; z-index: 5; background: rgba(0,0,0,.72); backdrop-filter: saturate(180%) blur(20px);
+header { position: sticky; top: 0; z-index: 5; background: var(--header-bg); backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid transparent; transition: border-color .3s; }
 header.scrolled { border-bottom-color: var(--line); }
 header .wrap { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 20px; height: 64px; }
@@ -50,7 +55,7 @@ nav::-webkit-scrollbar { display: none; }
 nav a { position: relative; z-index: 1; color: var(--text-2); text-decoration: none; padding: 6px 15px; border-radius: 999px; font-size: 13.5px; font-weight: 600; white-space: nowrap; transition: color .3s var(--ease); }
 nav a:hover { color: var(--text); }
 nav a.on { color: var(--text); }
-nav .pill { position: absolute; top: 3px; bottom: 3px; left: 0; width: 0; border-radius: 999px; background: #3a3a3c;
+nav .pill { position: absolute; top: 3px; bottom: 3px; left: 0; width: 0; border-radius: 999px; background: var(--pill);
   box-shadow: 0 1px 3px rgba(0,0,0,.4); transition: transform .5s var(--ease), width .5s var(--ease); }
 .head-right { justify-self: end; color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap; }
 @media (max-width: 1100px) { .brand small { display: none; } }
@@ -64,7 +69,7 @@ h1.title { font-size: clamp(34px, 5.4vw, 52px); font-weight: 700; letter-spacing
 .lead { color: var(--text-2); margin: 0 0 36px; font-size: 17px; font-weight: 500; letter-spacing: -.01em; }
 h2 { font-size: 19px; font-weight: 700; letter-spacing: -.025em; margin: 0 0 4px; }
 .hint-line { color: var(--muted); font-size: 13.5px; margin: 0 0 18px; }
-.card { background: var(--card); border-radius: 22px; padding: 26px; }
+.card { background: var(--card); border-radius: var(--r-card); padding: 26px; }
 .label { color: var(--text-2); font-size: 13.5px; font-weight: 600; }
 .row { display: grid; gap: 14px; margin-bottom: 14px; }
 .row > * { min-width: 0; }
@@ -87,6 +92,66 @@ section.block { margin-top: 52px; }
 .tile .hint { color: var(--muted); font-size: 13px; font-weight: 500; }
 .tile .hint.warn { color: var(--warn); } .tile .hint.ok { color: var(--good); }
 
+/* Themes: html[data-theme]. "default" is the dark look above. */
+html[data-theme=light] {
+  color-scheme: light;
+  --bg: #f5f5f7; --card: #fff; --card-2: #e8e8ed; --fill: rgba(0,0,0,.045); --line: rgba(0,0,0,.08);
+  --text: #1d1d1f; --text-2: #6e6e73; --muted: #8e8e93; --accent: #9b3dd6; --brand: #9b3dd6;
+  --header-bg: rgba(245,245,247,.78); --pill: #fff; --bar: #1d1d1f; --btn-bg: #1d1d1f; --btn-hover: #000; --btn-fg: #fff;
+  --switch-off: #d1d1d6; --tip-bg: rgba(255,255,255,.96); --scroll: #c7c7cc;
+  --heat-1: rgba(155,61,214,.2); --heat-2: rgba(155,61,214,.42); --heat-3: rgba(155,61,214,.68); --heat-4: #8e2fd0;
+}
+html[data-theme=light] .card, html[data-theme=light] nav { box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.04); }
+html[data-theme=light] dialog { box-shadow: 0 30px 80px rgba(0,0,0,.2); }
+
+html[data-theme=terminal] {
+  --bg: #030703; --card: #071007; --card-2: #0f220f; --fill: rgba(51,255,102,.07); --line: rgba(51,255,102,.28);
+  --text: #4dff7c; --text-2: #2ec85a; --muted: #1f8a3e; --accent: #33ff66; --brand: #33ff66; --on-accent: #021002;
+  --irid: #33ff66; --g1: #33ff66; --g2: #33ff66; --g3: #33ff66; --good: #33ff66; --warn: #ffb000;
+  --heat-1: #0e4a1c; --heat-2: #16802f; --heat-3: #22c24a; --heat-4: #4dff7c;
+  --header-bg: rgba(3,7,3,.92); --pill: #33ff66; --bar: #2ec85a; --btn-bg: transparent; --btn-hover: rgba(51,255,102,.14); --btn-fg: #4dff7c;
+  --switch-off: transparent; --tip-bg: #071007; --scroll: #16802f;
+  --r-card: 2px; --r-btn: 2px; --r-sm: 0;
+  --font: "Courier New", Courier, ui-monospace, monospace;
+}
+html[data-theme=terminal] * { letter-spacing: 0 !important; }
+html[data-theme=terminal] body { text-shadow: 0 0 6px rgba(51,255,102,.35); }
+html[data-theme=terminal] body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 50;
+  background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0 2px, rgba(0,0,0,.18) 2px 3px); }
+html[data-theme=terminal] .card, html[data-theme=terminal] dialog, html[data-theme=terminal] nav, html[data-theme=terminal] .w-hero { border: 1px solid var(--line); border-radius: 2px; box-shadow: none; }
+html[data-theme=terminal] nav .pill, html[data-theme=terminal] nav a, html[data-theme=terminal] .chip,
+html[data-theme=terminal] .strip, html[data-theme=terminal] .track, html[data-theme=terminal] .track i, html[data-theme=terminal] .bars .b i,
+html[data-theme=terminal] .heat i, html[data-theme=terminal] .scale i, html[data-theme=terminal] .item, html[data-theme=terminal] .avatar,
+html[data-theme=terminal] .opt, html[data-theme=terminal] .seg, html[data-theme=terminal] .seg button, html[data-theme=terminal] .themes button,
+html[data-theme=terminal] .theme-cards button, html[data-theme=terminal] .taskbar, html[data-theme=terminal] #tip { border-radius: 0; }
+html[data-theme=terminal] nav a.on, html[data-theme=terminal] .seg button.on { color: var(--on-accent); text-shadow: none; }
+html[data-theme=terminal] h1.title::before { content: '> '; color: var(--muted); }
+html[data-theme=terminal] h1.title::after { content: '_'; animation: blink 1s steps(1) infinite; }
+html[data-theme=terminal] .card h2::before { content: '# '; color: var(--muted); }
+html[data-theme=terminal] .btn { border: 1px solid var(--accent); text-transform: uppercase; }
+html[data-theme=terminal] .btn::before { content: '['; } html[data-theme=terminal] .btn::after { content: ']'; }
+html[data-theme=terminal] .btn.ghost { border-color: var(--line); background: transparent; }
+html[data-theme=terminal] .switch { width: auto; height: auto; background: none; }
+html[data-theme=terminal] .switch::after { content: '[ ]'; position: static; display: block; width: auto; height: auto; background: none; box-shadow: none; border-radius: 0; color: var(--text); font-weight: 700; transform: none !important; }
+html[data-theme=terminal] .opt input:checked + .switch { background: none; }
+html[data-theme=terminal] .opt input:checked + .switch::after { content: '[x]'; transform: none; }
+html[data-theme=terminal] .ring-arc { stroke-linecap: butt; }
+html[data-theme=terminal] .avatar img, html[data-theme=terminal] .logo { filter: grayscale(1) sepia(1) hue-rotate(70deg) saturate(5) brightness(.95); }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Theme picker */
+.theme-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.theme-cards button { border: 2px solid var(--line); border-radius: 14px; padding: 0; overflow: hidden; cursor: pointer; background: none; text-align: left; transition: border-color .2s, transform .2s var(--ease); }
+.theme-cards button.on { border-color: var(--accent); } .theme-cards button:active { transform: scale(.97); }
+.theme-cards .pv { height: 66px; padding: 10px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
+.theme-cards .pv i { display: block; height: 6px; border-radius: 3px; }
+.theme-cards b { display: block; padding: 8px 10px; font-size: 13px; font-weight: 600; color: var(--text); background: var(--card-2); }
+.taskbar.terminal .w b, .taskbar.terminal .w span { font-family: "Courier New", monospace; color: #33ff66; }
+.taskbar.terminal .w span { color: #22b24a; }
+.taskbar .w .gbar { display: block; height: 2px; margin-top: 3px; background: rgba(255,255,255,.25); }
+.taskbar .w .gbar i { display: block; height: 100%; width: 62%; background: #bf5af2; }
+.taskbar.terminal .w .gbar i { background: #33ff66; }
+
 /* Charts */
 .strip { position: relative; height: 34px; border-radius: 10px; background: var(--card-2); overflow: hidden; margin: 16px 0 6px; }
 .strip i { position: absolute; top: 0; bottom: 0; border-right: 1.5px solid var(--card); min-width: 2px; transition: filter .2s; }
@@ -97,7 +162,7 @@ section.block { margin-top: 52px; }
 .legend b { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; }
 .bars { display: flex; align-items: flex-end; gap: 5px; height: 170px; position: relative; margin-top: 18px; }
 .bars .b { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; min-width: 0; }
-.bars .b i { display: block; width: 100%; max-width: 30px; border-radius: 6px 6px 3px 3px; background: #e5e5ea; min-height: 3px; transform-origin: bottom; transition: background .25s, opacity .25s; }
+.bars .b i { display: block; width: 100%; max-width: 30px; border-radius: 6px 6px 3px 3px; background: var(--bar); min-height: 3px; transform-origin: bottom; transition: background .25s, opacity .25s; }
 .bars .b.zero i { background: var(--card-2); }
 .bars .b.now i { background: var(--irid); }
 .bars .b.over i { background: var(--warn); }
@@ -117,22 +182,22 @@ section.block { margin-top: 52px; }
 .item .name { font-weight: 600; display: flex; justify-content: space-between; gap: 10px; letter-spacing: -.01em; }
 .item .name em { font-style: normal; color: var(--muted); font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .track { height: 5px; background: var(--card-2); border-radius: 3px; margin-top: 8px; overflow: hidden; }
-.track i { display: block; height: 100%; border-radius: 3px; background: #e5e5ea; transform-origin: left; }
+.track i { display: block; height: 100%; border-radius: 3px; background: var(--bar); transform-origin: left; }
 .track.limit i { background: var(--irid); } .track.limit.over i { background: var(--warn); }
 .item .t { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 80px; letter-spacing: -.01em; }
 .item .t small { display: block; font-weight: 500; font-size: 12.5px; color: var(--muted); }
 .avatar { position: relative; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; color: #fff; font-size: 15px; }
 .avatar img { position: absolute; width: 32px; height: 32px; }
 .empty { color: var(--muted); text-align: center; padding: 32px 0; font-weight: 500; }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: 999px; font: 600 14px var(--font); cursor: pointer; text-decoration: none;
-  background: #f5f5f7; color: #000; border: 0; transition: transform .2s var(--ease), background .2s, opacity .2s; }
-.btn:hover { background: #fff; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: var(--r-btn); font: 600 14px var(--font); cursor: pointer; text-decoration: none;
+  background: var(--btn-bg); color: var(--btn-fg); border: 0; transition: transform .2s var(--ease), background .2s, opacity .2s; }
+.btn:hover { background: var(--btn-hover); }
 .btn:active { transform: scale(.96); }
 .btn.ghost { background: var(--fill); color: var(--text); }
-.btn.ghost:hover { background: rgba(255,255,255,.12); }
+.btn.ghost:hover { background: var(--line); }
 .btn:disabled { opacity: .3; cursor: default; transform: none; }
 .btn.small { padding: 7px 14px; font-size: 13px; }
-#tip { position: fixed; pointer-events: none; background: rgba(44,44,46,.92); backdrop-filter: blur(12px); color: var(--text); font-size: 12.5px; font-weight: 600;
+#tip { position: fixed; pointer-events: none; background: var(--tip-bg); backdrop-filter: blur(12px); color: var(--text); font-size: 12.5px; font-weight: 600;
   padding: 7px 11px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; transform: translateY(4px); z-index: 10; white-space: nowrap;
   transition: opacity .18s, transform .18s var(--ease); }
 #tip.on { opacity: 1; transform: none; }
@@ -141,7 +206,7 @@ section.block { margin-top: 52px; }
 .heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 1fr); gap: 3px; overflow-x: auto; padding-bottom: 4px; }
 .heat i { width: 13px; height: 13px; border-radius: 4px; background: var(--card-2); transition: transform .2s var(--ease); }
 .heat i:hover { transform: scale(1.35); }
-.heat i.l1 { background: rgba(94,231,255,.35); } .heat i.l2 { background: #7fa6ff; } .heat i.l3 { background: #d77bff; } .heat i.l4 { background: #ffb08a; }
+.heat i.l1 { background: var(--heat-1); } .heat i.l2 { background: var(--heat-2); } .heat i.l3 { background: var(--heat-3); } .heat i.l4 { background: var(--heat-4); }
 .heat i.future { background: transparent; }
 .months { display: grid; grid-auto-flow: column; gap: 3px; color: var(--muted); font-size: 11.5px; font-weight: 600; margin-bottom: 8px; overflow: hidden; }
 .months span { width: 13px; white-space: nowrap; }
@@ -179,9 +244,9 @@ dialog.wide { width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 32
 #welcome h2 { font-size: 28px; letter-spacing: -.02em; }
 .opt { display: flex; gap: 16px; align-items: center; justify-content: space-between; background: var(--card-2); border-radius: 16px; padding: 16px 18px; margin-top: 12px; cursor: pointer; }
 .opt b { display: block; font-size: 15px; } .opt span { color: var(--text-2); font-size: 13px; }
-.switch { position: relative; flex: none; width: 50px; height: 30px; border-radius: 999px; background: #48484a; transition: background .25s; }
+.switch { position: relative; flex: none; width: 50px; height: 30px; border-radius: 999px; background: var(--switch-off); transition: background .25s; }
 .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); transition: transform .3s var(--spring); }
-.opt input { display: none; } .opt input:checked + .switch { background: var(--good); } .opt input:checked + .switch::after { transform: translateX(20px); }
+.opt input { display: none; } .opt input:checked + .switch { background: var(--accent); } .opt input:checked + .switch::after { transform: translateX(20px); }
 .taskbar { margin-top: 14px; height: 48px; border-radius: 12px; background: #202020; display: flex; align-items: center; justify-content: flex-end; gap: 14px; padding: 0 14px; font: 12px 'Segoe UI', var(--font); color: #fff;
   opacity: .35; filter: saturate(.4); transition: opacity .35s, filter .35s; }
 .taskbar.on { opacity: 1; filter: none; }
@@ -194,7 +259,7 @@ dialog.wide { width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 32
 .steps { display: flex; gap: 6px; margin: 0 0 18px; } .steps i { width: 22px; height: 4px; border-radius: 4px; background: var(--card-2); transition: background .3s; } .steps i.on { background: var(--irid); }
 .seg { display: flex; background: var(--card-2); border-radius: 12px; padding: 3px; gap: 3px; flex: none; }
 .seg button { border: 0; background: none; color: var(--text-2); font: 600 13px var(--font); padding: 7px 11px; border-radius: 9px; cursor: pointer; transition: background .2s, color .2s; }
-.seg button.on { background: #48484a; color: var(--text); }
+.seg button.on { background: var(--accent); color: var(--on-accent); }
 .opt.static { cursor: default; }
 #welcome .actions { display: flex; justify-content: space-between; gap: 10px; }
 .cardhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
@@ -215,7 +280,7 @@ dialog .preview .avatar { width: 68px; height: 68px; border-radius: 18px; font-s
 dialog .preview .avatar img { width: 60px; height: 60px; }
 dialog label { display: block; color: var(--text-2); font-size: 13.5px; font-weight: 600; margin: 4px 0 8px; }
 dialog input[type=text] { width: 100%; background: var(--card-2); color: var(--text); border: 1px solid transparent; border-radius: 12px; padding: 11px 14px; font: 500 15px var(--font); transition: border-color .2s, box-shadow .2s; }
-dialog input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(255,122,217,.22); }
+dialog input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(191,90,242,.25); }
 .linkbtn { background: none; border: 0; color: var(--accent); font: 600 13px var(--font); cursor: pointer; padding: 0; }
 .linkbtn:hover { text-decoration: underline; }
 .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 26px; }
@@ -223,7 +288,7 @@ dialog input[type=text]:focus { outline: none; border-color: var(--accent); box-
 .update { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 4px 0 20px; padding: 14px 14px 14px 20px;
   background: var(--card); border-radius: 18px; font-size: 14px; font-weight: 500; color: var(--text-2); animation: rise .7s var(--ease) both; }
 .update b { color: var(--text); font-weight: 700; }
-.update .dot { display: inline-block; width: 8px; height: 8px; margin-right: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(255,122,217,.18); vertical-align: 1px; }
+.update .dot { display: inline-block; width: 8px; height: 8px; margin-right: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(191,90,242,.2); vertical-align: 1px; }
 .update[hidden] { display: none; }
 footer { margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; color: var(--muted); font-size: 13px; font-weight: 500; }
 footer a { color: var(--text-2); text-decoration: none; } footer a:hover { color: var(--text); }
@@ -275,7 +340,7 @@ footer a { color: var(--text-2); text-decoration: none; } footer a:hover { color
   <div id="view"></div>
   <footer>
     <span id="foot-local"></span>
-    <span><a href="/api/export.csv" download id="foot-export"></a> · <span id="foot-version"></span> · ef tools</span>
+    <span><a href="#" id="foot-look"></a> · <a href="/api/export.csv" download id="foot-export"></a> · <span id="foot-version"></span> · ef tools</span>
   </footer>
 </main>
 <div id="tip"></div>
@@ -291,6 +356,12 @@ footer a { color: var(--text-2); text-decoration: none; } footer a:hover { color
     <div class="err" id="ed-err"></div>
     <div class="actions"><button type="button" class="btn ghost" id="ed-cancel"></button><button type="submit" class="btn" id="ed-save"></button></div>
   </form>
+</dialog>
+
+<dialog id="prefs">
+  <h2 id="pf-title"></h2><p class="hint-line" id="pf-lead" style="margin:0"></p>
+  <div id="pf-body"></div>
+  <div class="actions" style="margin-top:22px;justify-content:flex-end"><button type="button" class="btn" id="pf-close"></button></div>
 </dialog>
 
 <dialog id="welcome">
@@ -351,7 +422,13 @@ const I18N = {
       versions: ['Regrouper les versions', 'robot_v01.mb, robot_v02.mb… comptent comme un seul projet.'],
       render: ['Compter le temps de rendu', "Quand tu t'absentes et qu'un logiciel 3D calcule, compté à part."],
       updates: ['Chercher les mises à jour', 'Une fois par jour, rien ne s\'installe sans ton clic.'],
+      theme: ['Thème', 'Le look de la fenêtre et du widget.'],
       back: 'Retour', next: 'Continuer', done: 'Commencer', applying: 'Application…' },
+    prefs: { title: 'Apparence', lead: "Le thème de la fenêtre et du widget de la barre des tâches. Appliqué tout de suite.", close: 'OK', theme: 'Thème', widget: 'Widget de la barre des tâches',
+      themes: { default: 'Sombre', light: 'Clair', terminal: 'Terminal' },
+      line: ['Deuxième ligne', 'Sous le temps du jour.'], lineApp: 'App', lineGoal: 'Objectif', lineNone: 'Rien',
+      bar: ["Barre d'objectif", "Un trait fin qui se remplit jusqu'à ton objectif."] },
+    goalPct: '62 % de 8 h',
     versions: n => `${n} versions`, renderShort: t => `rendu ${t}`, render: t => `+ ${t} de rendu, pendant ton absence`,
     focusMode: 'Mode concentration', focusReady: 'Prêt ?', focusHintOff: 'Rappels de pause et limites en sourdine pendant la session.',
     focusOn: 'Concentré. Les rappels attendent la fin.', focusStop: 'Arrêter',
@@ -420,7 +497,13 @@ const I18N = {
       versions: ['Group versions', 'robot_v01.mb, robot_v02.mb… count as one project.'],
       render: ['Count render time', 'When you are away and a 3D app keeps computing, counted apart.'],
       updates: ['Check for updates', 'Once a day, nothing installs without your click.'],
+      theme: ['Theme', 'The look of the window and of the widget.'],
       back: 'Back', next: 'Continue', done: 'Get started', applying: 'Applying…' },
+    prefs: { title: 'Appearance', lead: 'Theme of the window and of the taskbar widget. Applied right away.', close: 'Done', theme: 'Theme', widget: 'Taskbar widget',
+      themes: { default: 'Dark', light: 'Light', terminal: 'Terminal' },
+      line: ['Second line', "Under today's time."], lineApp: 'App', lineGoal: 'Goal', lineNone: 'None',
+      bar: ['Goal bar', 'A thin line that fills up to your daily goal.'] },
+    goalPct: '62% of 8 h',
     versions: n => `${n} versions`, renderShort: t => `render ${t}`, render: t => `+ ${t} of rendering while you were away`,
     focusMode: 'Focus mode', focusReady: 'Ready?', focusHintOff: 'Break reminders and limits stay quiet during the session.',
     focusOn: 'Focused. Reminders wait until the end.', focusStop: 'Stop',
@@ -451,7 +534,36 @@ const I18N = {
 let T = I18N.en, CONF = {};
 
 // ---------------------------------------------------------------- helpers
-const PALETTE = ['#0a84ff', '#ff9f0a', '#30d158', '#bf5af2', '#ff375f', '#64d2ff', '#ffd60a', '#5e5ce6'];
+const PALETTES = {
+  default: ['#0a84ff', '#ff9f0a', '#30d158', '#bf5af2', '#ff375f', '#64d2ff', '#ffd60a', '#5e5ce6'],
+  terminal: ['#33ff66', '#ffb000', '#00e5ff', '#ff5f56', '#b3ff00', '#ff79c6', '#d0d0d0', '#7aa2ff'],
+};
+let PALETTE = PALETTES.default;
+// Themes: the page look (CSS html[data-theme]) and the taskbar widget's style.
+const THEME_IDS = ['default', 'light', 'terminal'];
+const THEME_PV = { default: ['#000', '#1c1c1e', '#bf5af2', '#f5f5f7'], light: ['#f5f5f7', '#fff', '#9b3dd6', '#1d1d1f'], terminal: ['#030703', '#071007', '#33ff66', '#2ec85a'] };
+function applyTheme(t) {
+  if (!THEME_IDS.includes(t)) t = 'default';
+  document.documentElement.dataset.theme = t;
+  PALETTE = PALETTES[t] || PALETTES.default;
+  try { localStorage.setItem('theme', t); } catch {}
+}
+try { applyTheme(localStorage.getItem('theme') || 'default'); } catch {}
+function themeCards(current, names) {
+  return `<div class="theme-cards">${THEME_IDS.map(t => { const [bg, card, acc, text] = THEME_PV[t];
+    return `<button type="button" data-theme-pick="${t}" class="${t === current ? 'on' : ''}"><div class="pv" style="background:${bg}">
+      <i style="background:${acc};width:55%"></i><i style="background:${text};width:80%;opacity:.8"></i><i style="background:${card === '#fff' ? '#e8e8ed' : card};width:65%;outline:1px solid ${acc}33"></i></div>
+      <b style="${t === 'terminal' ? 'font-family:Courier New,monospace' : ''}">${names[t]}</b></button>`; }).join('')}</div>`;
+}
+// Taskbar preview, in the widget's style for the theme.
+function taskbarPreview(on, theme, line, bar) {
+  const l2 = { app: 'Maya · 1 h 02', goal: T.goalPct ? T.goalPct : '62 % · 8 h', none: '' }[line] ?? 'Maya · 1 h 02';
+  return `<div class="taskbar ${on ? 'on' : ''} ${theme === 'terminal' ? 'terminal' : ''}" id="wl-preview"><div class="w"><b>${theme === 'terminal' ? '&gt; ' : ''}2 h 14</b>${l2 ? `<span>${l2}</span>` : ''}${bar ? '<span class="gbar"><i></i></span>' : ''}</div><div class="clock">14:32<br>24/11/2026</div></div>`;
+}
+async function savePrefs(p) {
+  Object.assign(CONF, p);
+  try { await fetch('/api/prefs', { method: 'POST', headers: { ...WRITE, 'Content-Type': 'application/json' }, body: JSON.stringify(p) }); } catch {}
+}
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function fmt(s) {
@@ -506,11 +618,11 @@ function change(a) {
 function ring(value, goal) {
   const r = 46, c = 2 * Math.PI * r, f = goal ? Math.min(value / goal, 1) : 0, over = goal && value > goal;
   return `<svg class="ring" width="120" height="120" viewBox="0 0 116 116" aria-hidden="true">
-    <defs><linearGradient id="irid" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5ee7ff"/><stop offset=".35" stop-color="#8f8bff"/><stop offset=".7" stop-color="#ff6ad5"/><stop offset="1" stop-color="#ffd36e"/></linearGradient></defs>
-    <circle cx="58" cy="58" r="${r}" fill="none" stroke="#2c2c2e" stroke-width="11"/>
+    <defs><linearGradient id="irid" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--g1)"/><stop offset=".5" style="stop-color:var(--g2)"/><stop offset="1" style="stop-color:var(--g3)"/></linearGradient></defs>
+    <circle cx="58" cy="58" r="${r}" fill="none" style="stroke:var(--card-2)" stroke-width="11"/>
     <circle class="ring-arc" cx="58" cy="58" r="${r}" fill="none" stroke="${over ? '#ffd60a' : 'url(#irid)'}" stroke-width="11" stroke-linecap="round"
       data-dash="${c * f} ${c}" stroke-dasharray="${c * f} ${c}" transform="rotate(-90 58 58)"/>
-    <text x="58" y="65" text-anchor="middle" fill="#f5f5f7" font-size="21" font-weight="700">${goal ? Math.round(100 * value / goal) : 0}%</text></svg>`;
+    <text x="58" y="65" text-anchor="middle" style="fill:var(--text)" font-size="21" font-weight="700">${goal ? Math.round(100 * value / goal) : 0}%</text></svg>`;
 }
 // Bars with hover tooltips. items: [{label, tip, value, now}]
 function bars(items, goal) {
@@ -662,7 +774,7 @@ async function showYear(animate) {
   <h1 class="title">${T.year}</h1><p class="lead">${T.yearLead}</p>
   <div class="card" style="margin-bottom:12px"><div class="months" style="grid-template-columns:repeat(${total / 7},13px)">${months.join('')}</div>
     <div class="heat">${cells.join('')}</div>
-    <div class="scale">${T.less} <i style="background:var(--card-2)"></i><i style="background:rgba(94,231,255,.35)"></i><i style="background:#7fa6ff"></i><i style="background:#d77bff"></i><i style="background:#ff8f4f"></i> ${T.more}</div></div>
+    <div class="scale">${T.less} <i style="background:var(--card-2)"></i><i style="background:var(--heat-1)"></i><i style="background:var(--heat-2)"></i><i style="background:var(--heat-3)"></i><i style="background:var(--heat-4)"></i> ${T.more}</div></div>
   <div class="row c2b">
     <div class="card streak"><div class="label">${T.focusStreak}</div><div class="v">${num(fs.current, 'days')}</div>
       <div class="sub">${T.focusStreakHint(y.streak_minutes, esc(y.focus_apps.slice(0, 4).join(', ') + (y.focus_apps.length > 4 ? '…' : '')))} · ${T.best(fs.best)}</div></div>
@@ -882,7 +994,7 @@ const THEMES = [
     g.fillStyle = grey; g.font = `500 26px ${F}`; g.textAlign = 'right'; g.fillText(x.range, W - 100, 138); g.textAlign = 'left';
     g.fillStyle = grey; g.font = `600 30px ${F}`; g.fillText(x.app, 100, 268);
     g.fillStyle = ink; g.font = `800 76px ${F}`; g.letterSpacing = '-3px'; g.fillText(fit(g, x.name, W - 200), 96, 352); g.letterSpacing = '0px';
-    const ig = g.createLinearGradient(90, 380, 700, 540); [['#36c9f0', 0], ['#7d6bff', .35], ['#f04fc0', .7], ['#f5a524', 1]].forEach(([c, o]) => ig.addColorStop(o, c));
+    const ig = g.createLinearGradient(90, 380, 700, 540); [['#c77dff', 0], ['#9b4dff', .55], ['#7433ff', 1]].forEach(([c, o]) => ig.addColorStop(o, c));
     g.fillStyle = ig; g.font = `800 150px ${F}`; g.letterSpacing = '-7px'; g.fillText(fmt(x.seconds), 90, 520); g.letterSpacing = '0px';
     g.fillStyle = grey; g.font = `500 30px ${F}`; g.fillText(T.ex.time, 100, 572);
     const cw = (W - 200) / 2;
@@ -1198,6 +1310,8 @@ async function init() {
   document.documentElement.lang = CONF.lang || 'en';
   $('#nav').innerHTML = '<span class="pill"></span>' + VIEWS.map(v => `<a href="#${v}">${T.nav[v]}</a>`).join('');
   $('#foot-local').textContent = T.local;
+  $('#foot-look').textContent = T.prefs.title;
+  applyTheme(CONF.theme || 'default');
   $('#foot-export').textContent = T.export;
   $('#foot-version').textContent = 'v' + (CONF.version || '');
   showUpdate();
@@ -1208,9 +1322,29 @@ async function init() {
   route();
   // The nav pill must be measured with the final font.
   document.fonts.ready.then(movePill);
-  setInterval(() => { if (!document.hidden && !$('#editor').open && !$('#export').open && !$('#welcome').open && !['#wrapped', '#year', '#apps'].includes(location.hash)) route(false); }, 60000);
+  setInterval(() => { if (!document.hidden && !$('#editor').open && !$('#export').open && !$('#welcome').open && !$('#prefs').open && !['#wrapped', '#year', '#apps'].includes(location.hash)) route(false); }, 60000);
 }
 init();
+
+// Appearance: theme and taskbar widget, saved as soon as they change.
+function drawPrefs() {
+  const P = T.prefs, seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-pk="${k}" data-v="${v}" class="${CONF[k] === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  $('#pf-title').textContent = P.title; $('#pf-lead').textContent = P.lead; $('#pf-close').textContent = P.close;
+  $('#pf-body').innerHTML = `<h2 style="margin-top:20px">${P.theme}</h2>${themeCards(CONF.theme, P.themes)}
+    <h2 style="margin-top:26px">${P.widget}</h2>
+    <label class="opt"><div><b>${T.setup.widget[0]}</b><span>${T.setup.widget[1]}</span></div><input type="checkbox" data-pk="widget" ${CONF.widget ? 'checked' : ''}><i class="switch"></i></label>
+    ${taskbarPreview(CONF.widget, CONF.theme, CONF.widget_line, CONF.widget_bar)}
+    <div class="opt static"><div><b>${P.line[0]}</b><span>${P.line[1]}</span></div>${seg('widget_line', [['app', P.lineApp], ['goal', P.lineGoal], ['none', P.lineNone]])}</div>
+    <label class="opt"><div><b>${P.bar[0]}</b><span>${P.bar[1]}</span></div><input type="checkbox" data-pk="widget_bar" ${CONF.widget_bar ? 'checked' : ''}><i class="switch"></i></label>`;
+}
+$('#foot-look').onclick = e => { e.preventDefault(); drawPrefs(); $('#prefs').showModal(); };
+$('#pf-close').onclick = () => $('#prefs').close();
+$('#pf-body').addEventListener('click', e => {
+  const t = e.target.closest('[data-theme-pick]'), b = e.target.closest('.seg button');
+  if (t) { applyTheme(t.dataset.themePick); savePrefs({ theme: t.dataset.themePick }); route(false); drawPrefs(); }
+  if (b) { savePrefs({ [b.dataset.pk]: b.dataset.v }); drawPrefs(); }
+});
+$('#pf-body').addEventListener('change', e => { if (e.target.dataset.pk) { savePrefs({ [e.target.dataset.pk]: e.target.checked }); drawPrefs(); } });
 
 // First start: a three-step setup (language, rhythm, options). Settings that live in
 // config.toml are written by the tracker, which then restarts to apply them.
@@ -1219,7 +1353,7 @@ function showWelcome() {
   Object.assign(SETUP, { step: 0, lang: CONF.lang || 'en', goal: (CONF.goal || 8 * 3600) / 3600,
     reminder: CONF.break_reminder_minutes ?? 60, notifications: CONF.notifications !== false,
     widget: !!CONF.widget, autostart: true, render: !!CONF.render_time, versions: CONF.group_versions !== false,
-    updates: CONF.check_updates !== false });
+    updates: CONF.check_updates !== false, theme: CONF.theme || 'default' });
   drawWelcome();
   $('#welcome').showModal();
 }
@@ -1231,20 +1365,23 @@ function drawWelcome() {
   document.querySelectorAll('#welcome .steps i').forEach((d, i) => d.classList.toggle('on', i <= st));
   $('#wl-body').innerHTML = [
     `<img class="mark" src="/logo.png" alt=""><h2>${W.title}</h2><p class="hint-line" style="margin:6px 0 10px">${W.lead}</p>
-     ${row(W.lang, seg('lang', [['en', 'English'], ['fr', 'Français']]))}`,
+     ${row(W.lang, seg('lang', [['en', 'English'], ['fr', 'Français']]))}
+     <div class="opt static" style="display:block"><div><b>${W.theme[0]}</b><span>${W.theme[1]}</span></div>${themeCards(SETUP.theme, I18N[SETUP.lang].prefs.themes)}</div>`,
     `<h2>${W.rhythm}</h2><p class="hint-line" style="margin:6px 0 10px">${W.rhythmLead}</p>
      ${row(W.goal, seg('goal', [[4, '4 h'], [6, '6 h'], [8, '8 h'], [10, '10 h']]))}
      ${row(W.reminder, seg('reminder', [[0, W.never], [45, '45 min'], [60, '1 h'], [90, '1 h 30']]))}
      ${sw('notifications', W.notifications)}`,
     `<h2>${W.options}</h2><p class="hint-line" style="margin:6px 0 10px">${W.optionsLead}</p>
      ${sw('widget', W.widget)}
-     <div class="taskbar ${SETUP.widget ? 'on' : ''}" id="wl-preview"><div class="w"><b>2 h 14</b><span>Maya · 1 h 02</span></div><div class="clock">14:32<br>24/11/2026</div></div>
+     ${taskbarPreview(SETUP.widget, SETUP.theme, 'app', true)}
      ${sw('autostart', W.autostart)}${sw('versions', W.versions)}${sw('render', W.render)}${sw('updates', W.updates)}`,
   ][st];
   $('#wl-back').textContent = W.back; $('#wl-back').style.visibility = st ? 'visible' : 'hidden';
   $('#wl-go').textContent = st < 2 ? W.next : W.done;
 }
 $('#wl-body').addEventListener('click', e => {
+  const t = e.target.closest('[data-theme-pick]');
+  if (t) { SETUP.theme = t.dataset.themePick; applyTheme(SETUP.theme); drawWelcome(); return; }
   const b = e.target.closest('.seg button'); if (!b) return;
   SETUP[b.dataset.k] = b.dataset.k === 'lang' ? b.dataset.v : +b.dataset.v;
   drawWelcome();
@@ -1264,7 +1401,7 @@ $('#wl-go').onclick = async () => {
     answer = await (await fetch('/api/onboarding', { method: 'POST', headers: { ...WRITE, 'Content-Type': 'application/json' },
       body: JSON.stringify({ lang: SETUP.lang, goal_hours: SETUP.goal, break_reminder_minutes: SETUP.reminder,
         notifications: SETUP.notifications, widget: SETUP.widget, autostart: SETUP.autostart,
-        render_time: SETUP.render, group_versions: SETUP.versions, check_updates: SETUP.updates }) })).text();
+        render_time: SETUP.render, group_versions: SETUP.versions, check_updates: SETUP.updates, theme: SETUP.theme }) })).text();
   } catch {}
   CONF.onboarding = false;
   if (answer !== 'restart') { go.disabled = false; $('#welcome').close(); return; }

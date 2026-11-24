@@ -1,6 +1,6 @@
 [package]
 name = "ounce"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2024"
 description = "Screen time that weighs an ounce: a featherweight screen-time tracker for Windows"
 license = "MIT"

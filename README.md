@@ -103,6 +103,16 @@ The first time Ounce runs on a PC, its window opens a three-step setup:
 
 The choices are written to `config.toml` and Ounce restarts by itself to apply them. Everything can be changed later (tray menu, or *Edit settings…*).
 
+### Themes and widget style
+
+Click **Appearance** at the bottom of the window (or pick a theme at first start):
+
+- **Dark** (default): black, violet accent;
+- **Light**: Apple-style light grey and white;
+- **Terminal**: green phosphor on black, Courier New, square corners, `[x]` checkboxes and scanlines.
+
+The taskbar widget follows the theme (Courier New and green text for *Terminal*, a violet goal bar otherwise). In the same panel, choose its second line (top app, goal progress or nothing) and whether it shows the thin goal bar.
+
 ### Focus mode
 
 Right-click the tray icon → **Focus 25 min** or **Focus 50 min**, or use the *Focus mode* card on the *Today* page. During the session, break reminders and app limits stay quiet; the taskbar widget shows the time left (◎ 18 min). A notification tells you when it is over.

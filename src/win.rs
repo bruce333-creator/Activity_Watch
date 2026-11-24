@@ -975,6 +975,7 @@ unsafe extern "system" fn tray_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                 }
             }
         }
+        WM_WIDGET if wp.0 == 2 => widget_refresh(),
         WM_WIDGET => set_widget(wp.0 != 0),
         WM_FOCUS => start_focus(wp.0 as i64),
         WM_QUERYENDSESSION => return LRESULT(1),
@@ -1606,6 +1607,15 @@ pub fn main() -> i32 {
     };
     dlog!("database: {}", db.display());
     let widget_on = store.meta("widget").as_deref() == Some("1");
+    if let Ok(mut st) = WIDGET_STYLE.lock() {
+        st.terminal = store.meta("theme").as_deref() == Some("terminal");
+        st.line = match store.meta("widget_line").as_deref() {
+            Some("goal") => 1,
+            Some("none") => 2,
+            _ => 0,
+        };
+        st.bar = store.meta("widget_bar").as_deref() != Some("0");
+    }
     crate::hooks::register(crate::hooks::Hooks {
         set_widget: request_widget,
         set_autostart: |on| {
@@ -1614,6 +1624,7 @@ pub fn main() -> i32 {
         autostart: autostart_enabled,
         focus: |minutes| post_tray(WM_FOCUS, minutes.clamp(0, 600) as usize),
         restart: || post_tray(WM_RESTART, 1),
+        widget_style: set_widget_style,
     });
 
     let port = cfg.web_port;
@@ -2105,29 +2116,91 @@ fn widget_refresh() {
 
 /// Draws the two lines with GDI (grey anti-aliasing, white on black), then turns brightness
 /// into per-pixel alpha so the text blends with any taskbar colour or transparency.
+/// Widget look, chosen in the dashboard (DB meta "theme", "widget_line", "widget_bar").
+#[derive(Clone, Copy)]
+struct WidgetStyle {
+    terminal: bool,
+    /// Second line: 0 top app, 1 goal progress, 2 nothing.
+    line: u8,
+    bar: bool,
+}
+
+static WIDGET_STYLE: Mutex<WidgetStyle> = Mutex::new(WidgetStyle {
+    terminal: false,
+    line: 0,
+    bar: true,
+});
+
+fn set_widget_style(theme: &str, line: &str, bar: bool) {
+    if let Ok(mut st) = WIDGET_STYLE.lock() {
+        *st = WidgetStyle {
+            terminal: theme == "terminal",
+            line: match line {
+                "goal" => 1,
+                "none" => 2,
+                _ => 0,
+            },
+            bar,
+        };
+    }
+    post_tray(WM_WIDGET, 2);
+}
+
+type Rgb = (u32, u32, u32);
+
 fn widget_paint(hwnd: HWND, (x, y, w, h, dpi): (i32, i32, i32, i32, u32)) {
     let today = crate::collector::TODAY
         .lock()
         .map(|t| t.clone())
         .unwrap_or_default();
+    let style = WIDGET_STYLE.lock().map(|s| *s).unwrap_or(WidgetStyle {
+        terminal: false,
+        line: 0,
+        bar: true,
+    });
     let (lang, paused) = tray(|t| (t.lang, t.paused)).unwrap_or((Lang::En, false));
-    let line1 = short_duration(today.total);
+    let line1 = if style.terminal {
+        format!("> {}", short_duration(today.total))
+    } else {
+        short_duration(today.total)
+    };
     let focus = crate::collector::focus_end().map(|end| end - now_unix());
     let line2 = if paused {
         menu(lang).paused_short.to_string()
     } else if let Some(left) = focus {
         format!("◎ {}", short_duration(left.max(60)))
     } else {
-        today
-            .top
-            .map(|(name, s)| format!("{name} · {}", short_duration(s)))
-            .unwrap_or_default()
+        match style.line {
+            1 if today.goal > 0 => {
+                let pct = today.total * 100 / today.goal;
+                let goal = short_duration(today.goal);
+                match lang {
+                    Lang::Fr => format!("{pct} % de {goal}"),
+                    Lang::En => format!("{pct}% of {goal}"),
+                }
+            }
+            2 => String::new(),
+            _ => today
+                .top
+                .map(|(name, s)| format!("{name} · {}", short_duration(s)))
+                .unwrap_or_default(),
+        }
     };
-    let (c1, c2): ((u32, u32, u32), (u32, u32, u32)) = if taskbar_is_light() {
-        ((0x1a, 0x1a, 0x1a), (0x5c, 0x5c, 0x5c))
+    let light = taskbar_is_light();
+    // Text colours (light / dark taskbar), accent of the progress bar.
+    let (c1, c2, accent): (Rgb, Rgb, Rgb) = match (style.terminal, light) {
+        (true, false) => ((0x33, 0xff, 0x66), (0x22, 0xb2, 0x4a), (0x33, 0xff, 0x66)),
+        (true, true) => ((0x0a, 0x7a, 0x2e), (0x0f, 0x5f, 0x26), (0x0a, 0x9a, 0x3a)),
+        (false, false) => ((0xff, 0xff, 0xff), (0xc4, 0xc4, 0xc4), (0xbf, 0x5a, 0xf2)),
+        (false, true) => ((0x1a, 0x1a, 0x1a), (0x5c, 0x5c, 0x5c), (0x9b, 0x3d, 0xd6)),
+    };
+    let face = if style.terminal {
+        w!("Courier New")
     } else {
-        ((0xff, 0xff, 0xff), (0xc4, 0xc4, 0xc4))
+        w!("Segoe UI")
     };
+    let goal_part = (today.goal > 0 && style.bar && !paused)
+        .then(|| (today.total as f64 / today.goal as f64).min(1.0));
     let px = |v: i32| v * dpi as i32 / 96;
     let two = !line2.is_empty();
     let split = h / 2 + px(1);
@@ -2166,7 +2239,7 @@ fn widget_paint(hwnd: HWND, (x, y, w, h, dpi): (i32, i32, i32, i32, u32)) {
                     CLIP_DEFAULT_PRECIS,
                     ANTIALIASED_QUALITY,
                     0,
-                    w!("Segoe UI"),
+                    face,
                 )
             };
             let flags = DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS;
@@ -2219,6 +2292,26 @@ fn widget_paint(hwnd: HWND, (x, y, w, h, dpi): (i32, i32, i32, i32, u32)) {
                     c1
                 };
                 *p = (a << 24) | ((r * a / 255) << 16) | ((g * a / 255) << 8) | (b * a / 255);
+            }
+            // Goal progress: a thin bar along the bottom, in the theme's accent.
+            if let Some(part) = goal_part {
+                let (bh, margin) = (px(2).max(2), px(6));
+                let (x0, x1) = (margin, w - margin);
+                let filled = x0 + ((x1 - x0) as f64 * part) as i32;
+                for row in (h - bh - px(2)).max(0)..(h - px(2)) {
+                    for col in x0..x1 {
+                        let (rgb, a) = if col < filled {
+                            (accent, 255)
+                        } else {
+                            (c2, 70)
+                        };
+                        let (r, g, b) = rgb;
+                        pixels[(row * w + col) as usize] = (a << 24)
+                            | ((r * a / 255) << 16)
+                            | ((g * a / 255) << 8)
+                            | (b * a / 255);
+                    }
+                }
             }
             let blend = BLENDFUNCTION {
                 BlendOp: AC_SRC_OVER as u8,

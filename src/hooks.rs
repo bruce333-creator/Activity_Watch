@@ -13,6 +13,9 @@ pub struct Hooks {
     pub focus: fn(i64),
     /// Restarts Ounce (after the settings changed).
     pub restart: fn(),
+    /// Widget look: dashboard theme ("default", "light", "terminal"), second line
+    /// ("app", "goal", "none") and goal progress bar.
+    pub widget_style: fn(&str, &str, bool),
 }
 
 static HOOKS: OnceLock<Hooks> = OnceLock::new();

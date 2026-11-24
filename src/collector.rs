@@ -18,11 +18,14 @@ use std::time::Duration;
 pub struct Today {
     pub total: i64,
     pub top: Option<(String, i64)>,
+    /// Daily goal in seconds (0: none), for the widget's progress bar.
+    pub goal: i64,
 }
 
 pub static TODAY: Mutex<Today> = Mutex::new(Today {
     total: 0,
     top: None,
+    goal: 0,
 });
 
 /// End of the running focus session (unix seconds), for the widget and the dashboard.
@@ -388,7 +391,10 @@ impl<P: SystemProbe> Collector<P> {
         self.notified.clear();
         self.day_total = 0;
         if let Ok(mut t) = TODAY.lock() {
-            *t = Today::default();
+            *t = Today {
+                goal: self.cfg.goal_secs(),
+                ..Today::default()
+            };
         }
         for s in self
             .store
