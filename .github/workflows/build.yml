@@ -102,6 +102,31 @@ jobs:
           name: ounce-store
           path: ounce.msix
 
+      # A downloaded exe installs itself on double-click, and uninstalls from Settings > Apps.
+      - name: Self-install + uninstall test
+        shell: pwsh
+        run: |
+          $dl = "$env:RUNNER_TEMP\Downloads"
+          New-Item -ItemType Directory $dl -Force | Out-Null
+          Copy-Item target\release\ounce.exe $dl\ounce.exe
+          Start-Process "$dl\ounce.exe"
+          Start-Sleep 12
+          $inst = "$env:LOCALAPPDATA\Programs\Ounce\ounce.exe"
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Ounce'
+          $running = @(Get-Process ounce -ErrorAction SilentlyContinue | ForEach-Object Path)
+          "installed: $(Test-Path $inst); running: $running"
+          "Start menu: $(Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Ounce.lnk")"
+          Get-ItemProperty $key | Select-Object DisplayName, DisplayVersion, UninstallString | Format-List
+          if (-not (Test-Path $inst)) { Write-Error "not installed"; exit 1 }
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Ounce.lnk")) { Write-Error "no Start menu shortcut"; exit 1 }
+          if ((Get-ItemProperty $key).DisplayVersion -ne '${{ steps.ver.outputs.version }}') { Write-Error "no Settings > Apps entry"; exit 1 }
+          if ($running -notcontains $inst) { Write-Error "the installed copy is not running"; exit 1 }
+          if (Get-Item $inst -Stream Zone.Identifier -ErrorAction SilentlyContinue) { Write-Error "installed copy marked as downloaded"; exit 1 }
+          Start-Process $inst -ArgumentList '--uninstall', '--quiet' -Wait
+          Start-Sleep 6
+          "after uninstall: installed $(Test-Path $inst), key $(Test-Path $key), running $(@(Get-Process ounce -ErrorAction SilentlyContinue).Count)"
+          if ((Test-Path $inst) -or (Test-Path $key) -or (Get-Process ounce -ErrorAction SilentlyContinue)) { Write-Error "uninstall incomplete"; exit 1 }
+
       # Versions up to 0.5 look for activity-tracker.exe when they update: publish both names.
       - name: Legacy update name
         if: startsWith(github.ref, 'refs/tags/v') || inputs.release

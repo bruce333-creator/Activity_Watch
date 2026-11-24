@@ -41,16 +41,19 @@ use windows::Win32::Networking::WinHttp::{
 use windows::Win32::Storage::Packaging::Appx::{
     GetCurrentPackageFamilyName, GetCurrentPackageFullName,
 };
-use windows::Win32::System::Com::CoIncrementMTAUsage;
+use windows::Win32::System::Com::{
+    CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoIncrementMTAUsage,
+    CoInitializeEx, IPersistFile,
+};
 use windows::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, GetStdHandle, STD_OUTPUT_HANDLE,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
-use windows::Win32::System::Registry::RRF_RT_REG_DWORD;
 use windows::Win32::System::Registry::{
     HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_SZ, RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW,
 };
+use windows::Win32::System::Registry::{REG_DWORD, RRF_RT_REG_DWORD, RegDeleteKeyW};
 use windows::Win32::System::StationsAndDesktops::{
     CloseDesktop, DESKTOP_CONTROL_FLAGS, DESKTOP_READOBJECTS, GetUserObjectInformationW,
     OpenInputDesktop, UOI_NAME,
@@ -71,6 +74,7 @@ use windows::Win32::UI::HiDpi::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
 use windows::Win32::UI::Shell::{ABM_GETSTATE, ABS_AUTOHIDE, APPBARDATA, SHAppBarMessage};
+use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
 use windows::Win32::UI::Shell::{
     NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIIF_LARGE_ICON, NIIF_USER, NIM_ADD, NIM_DELETE,
     NIM_MODIFY, NIN_BALLOONUSERCLICK, NOTIFYICONDATAW, SHDefExtractIconW, Shell_NotifyIconW,
@@ -89,13 +93,13 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     DestroyWindow, EVENT_SYSTEM_FOREGROUND, FindWindowExW, GetClassNameW, GetWindowRect,
-    HWND_TOPMOST, IDC_HAND, LoadCursorW, MA_NOACTIVATE, SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, SWP_SHOWWINDOW, SetTimer, SetWindowPos, ShowWindow, ULW_ALPHA, UpdateLayeredWindow,
-    WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_DISPLAYCHANGE, WM_DPICHANGED,
-    WM_MOUSEACTIVATE, WM_SETTINGCHANGE, WM_TIMER, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
+    HWND_TOPMOST, IDC_HAND, IDNO, IDYES, LoadCursorW, MA_NOACTIVATE, MB_ICONQUESTION,
+    MB_YESNOCANCEL, MessageBoxW, SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+    SetTimer, SetWindowPos, ShowWindow, ULW_ALPHA, UpdateLayeredWindow, WINEVENT_OUTOFCONTEXT,
+    WINEVENT_SKIPOWNPROCESS, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_MOUSEACTIVATE, WM_SETTINGCHANGE,
+    WM_TIMER, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
 };
-use windows::core::{HSTRING, PCWSTR, PWSTR, w};
+use windows::core::{HSTRING, Interface, PCWSTR, PWSTR, w};
 
 const RUN_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Run");
 const RUN_VALUE: PCWSTR = w!("ActivityTracker");
@@ -430,19 +434,20 @@ fn startup_task(change: Option<bool>) -> Option<bool> {
     .flatten()
 }
 
-/// Another copy is running from a different exe (typically a new download while an old
-/// version runs at startup): save its session, close it, and let the launched exe take over.
-/// Works with every version since 0.3, which all flush on WM_ENDSESSION.
-fn replace_other_copy(exe: &Path) -> Option<bool> {
+/// The running Ounce (or Activity Tracker) instance, if any: its tray window, pid and exe.
+fn running_copy() -> Option<(HWND, u32, String)> {
     unsafe {
         let hwnd = FindWindowW(w!("ActivityTrackerTray"), PCWSTR::null()).ok()?;
         let mut pid = 0u32;
         GetWindowThreadProcessId(hwnd, Some(&mut pid));
-        let other = process_path(pid)?;
-        if other.eq_ignore_ascii_case(&exe.to_string_lossy()) {
-            return Some(false);
-        }
-        dlog!("another copy runs from {other}: replacing it");
+        Some((hwnd, pid, process_path(pid)?))
+    }
+}
+
+/// Saves the session of a running copy and closes it. Works with every version since 0.3,
+/// which all flush on WM_ENDSESSION.
+fn close_copy(hwnd: HWND, pid: u32) -> bool {
+    unsafe {
         let mut result = 0usize;
         let _ = SendMessageTimeoutW(
             hwnd,
@@ -454,12 +459,25 @@ fn replace_other_copy(exe: &Path) -> Option<bool> {
             Some(&mut result),
         );
         let _ = Shell_NotifyIconW(NIM_DELETE, &icon_data(hwnd));
-        let process = OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, false, pid).ok()?;
+        let Ok(process) = OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, false, pid) else {
+            return false;
+        };
         let _ = TerminateProcess(process, 0);
         let _ = WaitForSingleObject(process, 5000);
         let _ = CloseHandle(process);
-        Some(true)
+        true
     }
+}
+
+/// Another copy is running from a different exe (typically a new download while an old
+/// version runs at startup): close it and let the launched exe take over.
+fn replace_other_copy(exe: &Path) -> Option<bool> {
+    let (hwnd, pid, other) = running_copy()?;
+    if other.eq_ignore_ascii_case(&exe.to_string_lossy()) {
+        return Some(false);
+    }
+    dlog!("another copy runs from {other}: replacing it");
+    Some(close_copy(hwnd, pid))
 }
 
 fn autostart_enabled() -> bool {
@@ -1124,10 +1142,253 @@ fn install_update() {
     });
 }
 
+// ---------------------------------------------------------------- self-install
+
+/// Settings > Apps entry of the installed copy.
+const UNINSTALL_KEY: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Ounce");
+
+/// %LOCALAPPDATA%\Programs\Ounce: per-user, no admin rights needed.
+fn install_dir() -> Option<PathBuf> {
+    let local = std::env::var_os("LOCALAPPDATA")?;
+    Some(PathBuf::from(local).join("Programs").join("Ounce"))
+}
+
+fn start_menu_link() -> Option<PathBuf> {
+    let roaming = std::env::var_os("APPDATA")?;
+    Some(PathBuf::from(roaming).join("Microsoft\\Windows\\Start Menu\\Programs\\Ounce.lnk"))
+}
+
+fn same_path(a: &Path, b: &Path) -> bool {
+    a.to_string_lossy()
+        .eq_ignore_ascii_case(&b.to_string_lossy())
+}
+
+fn uninstall_get(name: PCWSTR) -> Option<String> {
+    let mut buf = [0u16; 260];
+    let mut size = (buf.len() * 2) as u32;
+    unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            UNINSTALL_KEY,
+            name,
+            RRF_RT_REG_SZ,
+            None,
+            Some(buf.as_mut_ptr().cast()),
+            Some(&mut size),
+        )
+        .ok()
+        .ok()?;
+    }
+    let len = (size as usize / 2).saturating_sub(1);
+    Some(String::from_utf16_lossy(&buf[..len]))
+}
+
+fn uninstall_set(name: PCWSTR, value: &str) {
+    let v: Vec<u16> = value.encode_utf16().chain([0]).collect();
+    unsafe {
+        let _ = RegSetKeyValueW(
+            HKEY_CURRENT_USER,
+            UNINSTALL_KEY,
+            name,
+            REG_SZ.0,
+            Some(v.as_ptr().cast()),
+            (v.len() * 2) as u32,
+        );
+    }
+}
+
+fn uninstall_set_dword(name: PCWSTR, value: u32) {
+    unsafe {
+        let _ = RegSetKeyValueW(
+            HKEY_CURRENT_USER,
+            UNINSTALL_KEY,
+            name,
+            REG_DWORD.0,
+            Some((&value as *const u32).cast()),
+            4,
+        );
+    }
+}
+
+/// Written at every start of the installed copy, so Settings > Apps shows the current version.
+fn register_uninstall(exe: &Path) {
+    let quoted = format!("\"{}\"", exe.display());
+    let dir = exe.parent().unwrap_or(exe);
+    uninstall_set(w!("DisplayName"), "Ounce");
+    uninstall_set(w!("DisplayVersion"), update::CURRENT);
+    uninstall_set(w!("Publisher"), "Enzo Freminet");
+    uninstall_set(w!("DisplayIcon"), &format!("{},0", exe.display()));
+    uninstall_set(w!("InstallLocation"), &dir.to_string_lossy());
+    uninstall_set(w!("UninstallString"), &format!("{quoted} --uninstall"));
+    uninstall_set(
+        w!("QuietUninstallString"),
+        &format!("{quoted} --uninstall --quiet"),
+    );
+    uninstall_set(
+        w!("URLInfoAbout"),
+        &format!("https://github.com/{}", update::REPO),
+    );
+    let kb = std::fs::metadata(exe).map_or(0, |m| (m.len() / 1024) as u32);
+    uninstall_set_dword(w!("EstimatedSize"), kb);
+    uninstall_set_dword(w!("NoModify"), 1);
+    uninstall_set_dword(w!("NoRepair"), 1);
+}
+
+fn create_shortcut(target: &Path, link: &Path) -> windows::core::Result<()> {
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+        let sl: IShellLinkW = CoCreateInstance(&ShellLink, None, CLSCTX_INPROC_SERVER)?;
+        sl.SetPath(&HSTRING::from(target))?;
+        if let Some(dir) = target.parent() {
+            sl.SetWorkingDirectory(&HSTRING::from(dir))?;
+        }
+        sl.SetDescription(w!("Screen time that weighs an ounce"))?;
+        sl.cast::<IPersistFile>()?.Save(&HSTRING::from(link), true)
+    }
+}
+
+/// Copies `exe` to `target` unless the same or a newer version is already there.
+fn install_copy(exe: &Path, target: &Path) -> Result<(), String> {
+    let dir = target.parent().ok_or("no install folder")?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("create {}: {e}", dir.display()))?;
+    let installed = uninstall_get(w!("DisplayVersion"));
+    if target.exists() && installed.is_some_and(|v| update::is_newer(&v, update::CURRENT)) {
+        dlog!("a newer version is already installed");
+        return Ok(());
+    }
+    let bytes = std::fs::read(exe).map_err(|e| format!("read {}: {e}", exe.display()))?;
+    if std::fs::read(target).ok().as_deref() == Some(&bytes[..]) {
+        return Ok(());
+    }
+    // The installed copy is replaced: close it first if it runs.
+    if let Some((hwnd, pid, _)) = running_copy() {
+        close_copy(hwnd, pid);
+    }
+    // Written rather than copied: like any installed program, the copy does not carry the
+    // downloaded file's "from the internet" mark, so Windows warns only once.
+    let (new, old) = (
+        target.with_extension("exe.new"),
+        target.with_extension("exe.old"),
+    );
+    std::fs::write(&new, &bytes).map_err(|e| format!("write {}: {e}", new.display()))?;
+    let _ = std::fs::remove_file(&old);
+    if target.exists() {
+        std::fs::rename(target, &old).map_err(|e| format!("rename installed exe: {e}"))?;
+    }
+    if let Err(e) = std::fs::rename(&new, target) {
+        let _ = std::fs::rename(&old, target);
+        return Err(format!("move new exe: {e}"));
+    }
+    Ok(())
+}
+
+/// A downloaded exe started by double-click installs itself in %LOCALAPPDATA%\Programs\Ounce
+/// (no admin rights, no installer), with a Start menu shortcut and an entry in Settings > Apps,
+/// then starts that copy. Returns false to run from where it is: already installed, Store
+/// build, or the install failed.
+fn self_install(exe: &Path) -> bool {
+    let (Some(dir), Some(here)) = (install_dir(), exe.parent()) else {
+        return false;
+    };
+    if is_packaged() || same_path(&dir, here) {
+        return false;
+    }
+    let target = dir.join("ounce.exe");
+    if let Err(e) = install_copy(exe, &target) {
+        dlog!(
+            "warning: cannot install to {}: {e}; running from here",
+            dir.display()
+        );
+        return false;
+    }
+    // Settings kept next to the exe by earlier versions.
+    let config = here.join("config.toml");
+    if config.exists() && !dir.join("config.toml").exists() {
+        let _ = std::fs::copy(&config, dir.join("config.toml"));
+    }
+    if let Some(link) = start_menu_link() {
+        if let Err(e) = create_shortcut(&target, &link) {
+            dlog!("warning: Start menu shortcut: {e}");
+        }
+    }
+    if autostart_enabled() {
+        let _ = set_autostart(&target, true);
+    }
+    dlog!("installed to {}, starting it", target.display());
+    std::process::Command::new(&target)
+        .current_dir(&dir)
+        .spawn()
+        .is_ok()
+}
+
+/// `--uninstall` (Settings > Apps): closes Ounce, removes autostart, the shortcut, the
+/// Settings entry and the installed exe. Asks whether to delete the history too, unless
+/// `--quiet` (which keeps it).
+fn uninstall(exe: &Path, quiet: bool) -> i32 {
+    let dir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
+    let lang = Lang::resolve(&Config::load_or_create(&dir.join("config.toml")).0.language);
+    let mut wipe = false;
+    if !quiet {
+        let text = match lang {
+            Lang::Fr => {
+                "Désinstaller Ounce ?\n\nOui : supprimer aussi ton historique.\nNon : garder l'historique (utile si tu réinstalles).\nAnnuler : ne rien changer."
+            }
+            Lang::En => {
+                "Uninstall Ounce?\n\nYes: also delete your history.\nNo: keep your history (handy if you reinstall).\nCancel: change nothing."
+            }
+        };
+        match unsafe {
+            MessageBoxW(
+                None,
+                &HSTRING::from(text),
+                w!("Ounce"),
+                MB_YESNOCANCEL | MB_ICONQUESTION,
+            )
+        } {
+            IDYES => wipe = true,
+            IDNO => {}
+            _ => return 1,
+        }
+    }
+    if let Some((hwnd, pid, _)) = running_copy() {
+        close_copy(hwnd, pid);
+    }
+    if autostart_enabled() {
+        let _ = set_autostart(exe, false);
+    }
+    unsafe {
+        let _ = RegDeleteKeyW(HKEY_CURRENT_USER, UNINSTALL_KEY);
+    }
+    if let Some(link) = start_menu_link() {
+        let _ = std::fs::remove_file(link);
+    }
+    if wipe {
+        if let Some(roaming) = std::env::var_os("APPDATA") {
+            let _ = std::fs::remove_dir_all(PathBuf::from(roaming).join("Ounce"));
+        }
+    }
+    // A running exe cannot delete itself: a hidden cmd removes the folder once we have exited.
+    if install_dir().is_some_and(|d| same_path(&d, &dir)) {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let _ = std::process::Command::new("cmd.exe")
+            .raw_arg(format!(
+                "/c ping -n 3 127.0.0.1 >nul & rmdir /s /q \"{}\"",
+                dir.display()
+            ))
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn();
+    }
+    println!(
+        "Ounce uninstalled{}",
+        if wipe { ", history deleted" } else { "" }
+    );
+    0
+}
+
 // ---------------------------------------------------------------- entry point
 
-const USAGE: &str =
-    "ounce [--debug-log] [--selftest] [--install-autostart] [--uninstall-autostart]";
+const USAGE: &str = "ounce [--debug-log] [--selftest] [--install-autostart] [--uninstall-autostart] [--uninstall [--quiet]]";
 // --updated is internal: passed by the old exe when it restarts the new one.
 
 pub fn main() -> i32 {
@@ -1140,7 +1401,9 @@ pub fn main() -> i32 {
     if args.iter().any(|a| a != "--debug-log" && a != "--updated") {
         attach_console();
     }
-    const FLAGS: [&str; 5] = [
+    const FLAGS: [&str; 7] = [
+        "--uninstall",
+        "--quiet",
         "--debug-log",
         "--updated",
         "--selftest",
@@ -1169,6 +1432,14 @@ pub fn main() -> i32 {
                 1
             }
         };
+    }
+
+    if has("--uninstall") {
+        return uninstall(&exe, has("--quiet"));
+    }
+    // Double-click on the downloaded exe: install it, then run the installed copy.
+    if args.iter().all(|a| a == "--debug-log") && self_install(&exe) {
+        return 0;
     }
 
     unsafe {
@@ -1233,6 +1504,9 @@ pub fn main() -> i32 {
         if !packaged && autostart_enabled() {
             let _ = set_autostart(&exe, true);
         }
+    }
+    if !packaged && install_dir().is_some_and(|d| same_path(&d, &dir)) {
+        register_uninstall(&exe);
     }
     if !packaged {
         data_dir = migrate_data_dir(data_dir);

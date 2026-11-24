@@ -4,7 +4,7 @@ Paste the whole block below into your site builder (Claude, Lovable, Framer AI, 
 
 ---
 
-Create a dedicated page for my software **Ounce** on my personal website **ef tools** (by Enzo Freminet). The page must match the existing site exactly: dark background, **Manrope** typeface, a minimal, premium look inspired by Apple product pages. Generous whitespace, large tight headlines (weight 800, negative letter-spacing), grey secondary text (#a1a1a6), very dark grey cards (#1c1c1e) with large rounded corners (24 px) and no border. One accent colour only, tangerine #FF6B1A (the colour of the logo), used sparingly. No loud gradients, no neon, no emoji in headings. All copy is in English.
+Create a dedicated page for my software **Ounce** on my personal website **ef tools** (by Enzo Freminet). The page must match the existing site exactly: dark background, **Manrope** typeface, a minimal, premium look inspired by Apple product pages. Generous whitespace, large tight headlines (weight 800, negative letter-spacing), grey secondary text (#a1a1a6), very dark grey cards (#1c1c1e) with large rounded corners (24 px) and no border. One accent colour only, tangerine #FF6B1A (the colour of the logo), used sparingly. The app icon (`logo-512.png`) is a tangerine tile with a liquid-glass dandelion clock: show it as is, never recoloured. No loud gradients, no neon, no emoji in headings. All copy is in English.
 
 ## Animations
 Smooth and understated, triggered on scroll:
@@ -21,6 +21,7 @@ Respect `prefers-reduced-motion` (no animation at all). Fully responsive, flawle
 - `03-featherweight.png`: key figures
 - `capture-today.png`, `capture-week.png`, `capture-wrapped.png`, `capture-year.png`, `capture-apps.png`: interface screenshots (2880×1800)
 - `wrapped-share.png`: the Wrapped share card (4:5 portrait)
+- `export-minimal.png`, `export-receipt-photo.png`, `export-arcade-cabinet.png`: project share images (4:5 portrait)
 - `og-1200x630.png`: use as the page's Open Graph / Twitter image
 
 Show the screenshots inside a sober window frame (dark grey title bar with three grey dots, rounded corners, very soft shadow). Use `loading="lazy"` except for the top image, and descriptive alt text on every image.
@@ -42,7 +43,7 @@ Show the screenshots inside a sober window frame (dark grey title bar with three
 - **Time per project**: "Maya, Blender, Houdini, Photoshop… Time spent on each scene is detected automatically."
 - **Wellbeing**: "Break reminders, a daily goal and per-app limits, as Windows notifications."
 - **Your year**: "A calendar where every day is a square, with your creative streaks and records."
-- **Share a project**: "Turn one project into an image: time, days, sessions, breaks, earliest start and latest finish. Minimal, receipt or arcade style."
+- **Share a project**: "Turn one project into an image: time, days, sessions, breaks, earliest start and latest finish. Minimal, receipt (flat or crumpled for real), arcade screen or arcade cabinet."
 
 **3. Wrapped section**: text on the left, `wrapped-share.png` on the right, slightly tilted (rotate -3°), straightening on hover.
 - Headline: "Your week, told."
@@ -58,8 +59,8 @@ Show the screenshots inside a sober window frame (dark grey title bar with three
 Under them, small grey text: "Measured on Windows by the build's selftest."
 
 **6. Get started in 3 steps** (numbers 1-2-3 in circles):
-1. Download `ounce.exe` and put it in a folder of your own, e.g. Documents\Ounce.
-2. Double-click it: the icon appears next to the Windows clock.
+1. Download `ounce.exe`.
+2. Double-click it: Ounce installs itself (no admin rights, no installer), appears in the Start menu, and its icon shows up next to the Windows clock.
 3. Right-click the icon → "Run at Windows startup". That's it.
 
 **7. FAQ**: animated accordion (smooth height, rotating chevron):

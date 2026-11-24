@@ -25,7 +25,11 @@ Measurements come from the Windows machine that builds each release (see the *Se
 
 **[Download the latest version](https://github.com/bruce333-creator/ounce/releases/latest/download/ounce.exe)** (or see [all releases](https://github.com/bruce333-creator/ounce/releases)).
 
-Put the exe in a folder of your own, e.g. `C:\Tools\Ounce\` (a `config.toml` is created next to it on first launch), then double-click it.
+Double-click it, straight from your Downloads folder. Ounce **installs itself**: it copies itself to `%LOCALAPPDATA%\Programs\Ounce\` (your account only, no admin rights), adds **Ounce** to the Start menu and to *Settings → Apps*, then starts from there. You can delete the downloaded file afterwards. Your settings (`config.toml`) live next to the installed exe.
+
+Coming from an older version kept in a folder of your own? Launch it once: it moves itself to the same place, keeps your history and settings, and points *Run at Windows startup* at the new location.
+
+**Uninstall**: *Settings → Apps → Ounce → Uninstall*. Ounce asks whether to delete your history too (`ounce.exe --uninstall --quiet` uninstalls without asking and keeps it).
 
 > The exe is not signed: on first launch Windows SmartScreen may say "Windows protected your PC". Click **More info** → **Run anyway**. See [SmartScreen and antivirus](#smartscreen-and-antivirus).
 
@@ -115,7 +119,9 @@ Hover a project in the *Projects* list (*Today*, *Week*, *Month* or the Wrapped)
 
 - **Minimal**: clean, Apple-like;
 - **Receipt**: the project itemized on a till receipt, with a barcode;
-- **Arcade**: a "level complete" screen.
+- **Real receipt**: the same receipt printed on thermal paper, crumpled and photographed on a table;
+- **Arcade**: a "level complete" screen;
+- **Arcade cabinet**: that screen on an arcade cabinet, in a dark arcade room.
 
 Each one shows the time on the project and how it was spread: over how many days (and how many of them you actually worked on it), the number of sessions, the breaks you took during those working days, the longest session, and the earliest start and latest finish. More styles will come: a style is one drawing function added to `THEMES` in `assets/dashboard.html`.
 
@@ -180,7 +186,7 @@ Easiest: right-click the tray icon → **Run at Windows startup**. Or, from a co
 ounce.exe --install-autostart
 ```
 
-This adds an entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (your account only, no admin rights needed) pointing to the **current** location of the exe. If you move the exe, run the command again. To remove it:
+This adds an entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (your account only, no admin rights needed) pointing to the **current** location of the exe. To remove it:
 
 ```
 ounce.exe --uninstall-autostart
