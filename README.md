@@ -109,9 +109,11 @@ Click **Appearance** at the bottom of the window (or pick a theme at first start
 
 - **Dark** (default): black, violet accent;
 - **Light**: Apple-style light grey and white;
-- **Terminal**: green phosphor on black, Courier New, square corners, `[x]` checkboxes and scanlines.
+- **Terminal**: green phosphor on black, Courier New, square corners, `[x]` checkboxes and scanlines;
+- **Blueprint**: an architect's plan, white lines on blue over a drafting grid, corner marks, Bahnschrift;
+- **Viewport**: the grey interface of Maya: bevelled rectangular grey buttons, collapsible-panel headers, square checkboxes, blue selection and aliased (jagged) text.
 
-The taskbar widget follows the theme (Courier New and green text for *Terminal*, a violet goal bar otherwise). In the same panel, choose its second line (top app, goal progress or nothing) and whether it shows the thin goal bar.
+The taskbar widget can follow the theme (*Follow the theme*, on by default): Courier New in green for *Terminal*, Bahnschrift for *Blueprint*, aliased text for *Viewport*, a violet goal bar otherwise. In the same panel, choose its second line (top app, goal progress or nothing) and whether it shows the thin goal bar.
 
 ### Focus mode
 

@@ -51,7 +51,7 @@ pub fn summary_json(store: &Store, cfg: &Config, range: &str, now: i64) -> Strin
     v.to_string()
 }
 
-const THEMES: [&str; 3] = ["default", "light", "terminal"];
+const THEMES: [&str; 5] = ["default", "light", "terminal", "blueprint", "viewport"];
 
 /// Stores the appearance choices present in `v` and restyles the taskbar widget.
 fn save_prefs(store: &Store, v: &serde_json::Value) {
@@ -64,8 +64,10 @@ fn save_prefs(store: &Store, v: &serde_json::Value) {
     {
         let _ = store.set_meta("widget_line", l);
     }
-    if let Some(b) = v["widget_bar"].as_bool() {
-        let _ = store.set_meta("widget_bar", if b { "1" } else { "0" });
+    for key in ["widget_bar", "widget_follow"] {
+        if let Some(b) = v[key].as_bool() {
+            let _ = store.set_meta(key, if b { "1" } else { "0" });
+        }
     }
     if let Some(h) = crate::hooks::get() {
         if let Some(on) = v["widget"].as_bool() {
@@ -75,6 +77,7 @@ fn save_prefs(store: &Store, v: &serde_json::Value) {
             &store.meta("theme").unwrap_or_default(),
             &store.meta("widget_line").unwrap_or_default(),
             store.meta("widget_bar").as_deref() != Some("0"),
+            store.meta("widget_follow").as_deref() != Some("0"),
         );
     }
 }
@@ -322,6 +325,7 @@ pub fn serve(
                     "theme": store.meta("theme").unwrap_or_else(|| "default".into()),
                     "widget_line": store.meta("widget_line").unwrap_or_else(|| "app".into()),
                     "widget_bar": store.meta("widget_bar").as_deref() != Some("0"),
+                    "widget_follow": store.meta("widget_follow").as_deref() != Some("0"),
                 });
                 req.respond(
                     Response::from_string(body.to_string()).with_header(header("application/json")),

@@ -138,9 +138,90 @@ html[data-theme=terminal] .opt input:checked + .switch::after { content: '[x]'; 
 html[data-theme=terminal] .ring-arc { stroke-linecap: butt; }
 html[data-theme=terminal] .avatar img, html[data-theme=terminal] .logo { filter: grayscale(1) sepia(1) hue-rotate(70deg) saturate(5) brightness(.95); }
 @keyframes blink { 50% { opacity: 0; } }
+html[data-theme=blueprint] {
+  --bg: #0d3b72; --card: rgba(9,45,90,.82); --card-2: rgba(255,255,255,.1); --fill: rgba(255,255,255,.08); --line: rgba(255,255,255,.32);
+  --text: #f4f9ff; --text-2: #b9d6f5; --muted: #85acd8; --accent: #7fd4ff; --brand: #7fd4ff; --on-accent: #0d3b72;
+  --irid: #e8f4ff; --g1: #ffffff; --g2: #bfe7ff; --g3: #7fd4ff; --good: #9effc8; --warn: #ffd27f;
+  --heat-1: rgba(255,255,255,.18); --heat-2: rgba(255,255,255,.38); --heat-3: rgba(255,255,255,.62); --heat-4: #ffffff;
+  --header-bg: rgba(13,59,114,.88); --pill: rgba(255,255,255,.22); --bar: #e8f4ff; --btn-bg: transparent; --btn-hover: rgba(255,255,255,.12); --btn-fg: #fff;
+  --switch-off: rgba(255,255,255,.18); --tip-bg: #0b335f; --scroll: #3f6fa8;
+  --r-card: 0; --r-btn: 0; --r-sm: 0;
+  --font: "Bahnschrift", "DIN Alternate", "Segoe UI", system-ui, sans-serif;
+}
+html[data-theme=blueprint], html[data-theme=blueprint] body { background-color: var(--bg);
+  background-image: linear-gradient(rgba(255,255,255,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.12) 1px, transparent 1px),
+    linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px; background-attachment: fixed; }
+html[data-theme=blueprint] .card, html[data-theme=blueprint] dialog, html[data-theme=blueprint] .w-hero { position: relative; border: 1px solid var(--line); border-radius: 0; box-shadow: none; }
+html[data-theme=blueprint] .card::before { content: ''; position: absolute; inset: -5px; pointer-events: none;
+  background: linear-gradient(#fff, #fff) top left / 11px 1px no-repeat, linear-gradient(#fff, #fff) top left / 1px 11px no-repeat,
+    linear-gradient(#fff, #fff) bottom right / 11px 1px no-repeat, linear-gradient(#fff, #fff) bottom right / 1px 11px no-repeat; }
+html[data-theme=blueprint] nav, html[data-theme=blueprint] nav .pill, html[data-theme=blueprint] nav a, html[data-theme=blueprint] .chip,
+html[data-theme=blueprint] .strip, html[data-theme=blueprint] .track, html[data-theme=blueprint] .track i, html[data-theme=blueprint] .bars .b i,
+html[data-theme=blueprint] .heat i, html[data-theme=blueprint] .scale i, html[data-theme=blueprint] .item, html[data-theme=blueprint] .avatar,
+html[data-theme=blueprint] .opt, html[data-theme=blueprint] .seg, html[data-theme=blueprint] .seg button, html[data-theme=blueprint] .switch,
+html[data-theme=blueprint] .switch::after, html[data-theme=blueprint] .themes button, html[data-theme=blueprint] .theme-cards button { border-radius: 0; }
+html[data-theme=blueprint] nav { border: 1px solid var(--line); background: transparent; }
+html[data-theme=blueprint] .label, html[data-theme=blueprint] .hint-line, html[data-theme=blueprint] nav a, html[data-theme=blueprint] .btn { text-transform: uppercase; letter-spacing: .08em !important; }
+html[data-theme=blueprint] h1.title { font-weight: 600; letter-spacing: .01em; border-bottom: 1px solid var(--line); padding-bottom: 10px; display: inline-block; }
+html[data-theme=blueprint] .btn { border: 1px solid #fff; }
+html[data-theme=blueprint] .btn.ghost { border-color: var(--line); background: transparent; }
+html[data-theme=blueprint] .strip, html[data-theme=blueprint] .track { background: transparent; outline: 1px dashed var(--line); }
+html[data-theme=blueprint] .bars .b i { background: transparent; border: 1px solid var(--bar); }
+html[data-theme=blueprint] .bars .b.now i { background: var(--accent); border-color: var(--accent); }
+html[data-theme=blueprint] .avatar img, html[data-theme=blueprint] .logo { filter: grayscale(1) brightness(1.6) sepia(1) hue-rotate(170deg) saturate(2.5); }
+
+/* Viewport: the grey, bevelled, aliased look of Maya's interface. */
+html[data-theme=viewport] {
+  color-scheme: dark;
+  --bg: #393939; --card: #444444; --card-2: #2b2b2b; --fill: rgba(255,255,255,.06); --line: #2a2a2a;
+  --text: #dddddd; --text-2: #bbbbbb; --muted: #8c8c8c; --accent: #5285a6; --brand: #5285a6; --on-accent: #fff;
+  --irid: #5285a6; --g1: #79b4d9; --g2: #5285a6; --g3: #5285a6; --good: #6fa36f; --warn: #d9b44a;
+  --heat-1: #3e4b55; --heat-2: #48667c; --heat-3: #5285a6; --heat-4: #8fc3e3;
+  --header-bg: #444444; --pill: #5285a6; --bar: #c8c8c8; --btn-bg: #5d5d5d; --btn-hover: #6b6b6b; --btn-fg: #e6e6e6;
+  --switch-off: #2b2b2b; --tip-bg: #2b2b2b; --scroll: #5d5d5d;
+  --r-card: 2px; --r-btn: 2px; --r-sm: 2px;
+  --font: "Segoe UI", Tahoma, system-ui, sans-serif;
+}
+html[data-theme=viewport] * { letter-spacing: 0 !important; }
+html[data-theme=viewport] body { font-size: 13px; }
+html[data-theme=viewport] img, html[data-theme=viewport] svg { image-rendering: pixelated; shape-rendering: crispEdges; }
+html[data-theme=viewport] h1.title, html[data-theme=viewport] .big, html[data-theme=viewport] .v, html[data-theme=viewport] h2,
+html[data-theme=viewport] .label, html[data-theme=viewport] nav a, html[data-theme=viewport] .btn, html[data-theme=viewport] .item .name,
+html[data-theme=viewport] .item .t, html[data-theme=viewport] .w-hero h1 { filter: url(#alias); }
+html[data-theme=viewport] h1.title, html[data-theme=viewport] .big, html[data-theme=viewport] .v, html[data-theme=viewport] .w-hero h1 { font-weight: 600; }
+html[data-theme=viewport] header { border-bottom: 1px solid #2a2a2a; backdrop-filter: none; }
+html[data-theme=viewport] .card, html[data-theme=viewport] dialog, html[data-theme=viewport] .w-hero { border: 1px solid #2a2a2a; box-shadow: inset 1px 1px 0 #555, inset -1px -1px 0 #333; padding-top: 0; }
+html[data-theme=viewport] dialog { padding-top: 26px; }
+html[data-theme=viewport] .card > h2:first-child, html[data-theme=viewport] .card > .label:first-child, html[data-theme=viewport] .card > .cardhead:first-child {
+  margin: 0 -26px 18px; padding: 5px 12px; background: #5d5d5d; border-bottom: 1px solid #2a2a2a; font-size: 13px; font-weight: 600; color: #e6e6e6; }
+html[data-theme=viewport] .card > h2:first-child::before, html[data-theme=viewport] .card > .label:first-child::before { content: '▾  '; color: #bbb; }
+html[data-theme=viewport] .card > :first-child:not(h2):not(.label):not(.cardhead) { margin-top: 26px; }
+html[data-theme=viewport] .card.goal, html[data-theme=viewport] .card.focuscard { padding-top: 22px; }
+html[data-theme=viewport] nav { background: #2b2b2b; border-radius: 2px; padding: 2px; }
+html[data-theme=viewport] nav .pill, html[data-theme=viewport] nav a, html[data-theme=viewport] .chip, html[data-theme=viewport] .item,
+html[data-theme=viewport] .avatar, html[data-theme=viewport] .seg, html[data-theme=viewport] .seg button, html[data-theme=viewport] .opt,
+html[data-theme=viewport] .heat i, html[data-theme=viewport] .scale i, html[data-theme=viewport] .strip, html[data-theme=viewport] .track,
+html[data-theme=viewport] .track i, html[data-theme=viewport] .bars .b i, html[data-theme=viewport] .theme-cards button, html[data-theme=viewport] .themes button { border-radius: 2px; }
+html[data-theme=viewport] nav a.on { color: #fff; }
+html[data-theme=viewport] .btn, html[data-theme=viewport] .seg button { background: linear-gradient(#686868, #575757); color: var(--btn-fg); border: 1px solid #262626;
+  box-shadow: inset 1px 1px 0 #7d7d7d; padding: 6px 16px; font-weight: 400; }
+html[data-theme=viewport] .btn:hover { background: linear-gradient(#747474, #626262); }
+html[data-theme=viewport] .btn:active, html[data-theme=viewport] .seg button.on { background: #5285a6; box-shadow: inset 1px 1px 0 #3a5f78; transform: none; color: #fff; }
+html[data-theme=viewport] .btn.ghost { background: linear-gradient(#545454, #4a4a4a); }
+html[data-theme=viewport] .seg { background: transparent; gap: 2px; padding: 0; }
+html[data-theme=viewport] .opt { background: #3c3c3c; border: 1px solid #2f2f2f; }
+html[data-theme=viewport] .switch { width: 15px; height: 15px; border-radius: 0; background: #2b2b2b; border: 1px solid #1e1e1e; box-shadow: inset 1px 1px 0 #1a1a1a; }
+html[data-theme=viewport] .switch::after { content: ''; inset: 0; top: 0; left: 0; width: auto; height: auto; border-radius: 0; background: none; box-shadow: none; transform: none !important; }
+html[data-theme=viewport] .opt input:checked + .switch { background: #2b2b2b; }
+html[data-theme=viewport] .opt input:checked + .switch::after { content: '✓'; color: #fff; font: 700 12px/13px var(--font); text-align: center; }
+html[data-theme=viewport] .strip i { border-right-color: #2b2b2b; }
+html[data-theme=viewport] .bars .b i { background: #bdbdbd; }
+html[data-theme=viewport] .theme-cards b { background: #5d5d5d; }
+
 
 /* Theme picker */
-.theme-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.theme-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-top: 12px; }
 .theme-cards button { border: 2px solid var(--line); border-radius: 14px; padding: 0; overflow: hidden; cursor: pointer; background: none; text-align: left; transition: border-color .2s, transform .2s var(--ease); }
 .theme-cards button.on { border-color: var(--accent); } .theme-cards button:active { transform: scale(.97); }
 .theme-cards .pv { height: 66px; padding: 10px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; }
@@ -151,6 +232,8 @@ html[data-theme=terminal] .avatar img, html[data-theme=terminal] .logo { filter:
 .taskbar .w .gbar { display: block; height: 2px; margin-top: 3px; background: rgba(255,255,255,.25); }
 .taskbar .w .gbar i { display: block; height: 100%; width: 62%; background: #bf5af2; }
 .taskbar.terminal .w .gbar i { background: #33ff66; }
+.taskbar.blueprint .w b, .taskbar.blueprint .w span { font-family: Bahnschrift, sans-serif; } .taskbar.blueprint .w span { color: #9fc9ff; } .taskbar.blueprint .w .gbar i { background: #6cc4ff; }
+.taskbar.viewport .w b, .taskbar.viewport .w span { color: #dcdcdc; filter: url(#alias); } .taskbar.viewport .w span { color: #a0a0a0; } .taskbar.viewport .w .gbar i { background: #5285a6; }
 
 /* Charts */
 .strip { position: relative; height: 34px; border-radius: 10px; background: var(--card-2); overflow: hidden; margin: 16px 0 6px; }
@@ -344,6 +427,7 @@ footer a { color: var(--text-2); text-decoration: none; } footer a:hover { color
   </footer>
 </main>
 <div id="tip"></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="alias"><feComponentTransfer><feFuncA type="discrete" tableValues="0 1"/></feComponentTransfer></filter></svg>
 <dialog id="editor">
   <form method="dialog" id="edit-form">
     <h2 id="ed-title"></h2><p class="hint-line" id="ed-hint" style="margin:0"></p>
@@ -425,7 +509,8 @@ const I18N = {
       theme: ['Thème', 'Le look de la fenêtre et du widget.'],
       back: 'Retour', next: 'Continuer', done: 'Commencer', applying: 'Application…' },
     prefs: { title: 'Apparence', lead: "Le thème de la fenêtre et du widget de la barre des tâches. Appliqué tout de suite.", close: 'OK', theme: 'Thème', widget: 'Widget de la barre des tâches',
-      themes: { default: 'Sombre', light: 'Clair', terminal: 'Terminal' },
+      themes: { default: 'Sombre', light: 'Clair', terminal: 'Terminal', blueprint: 'Blueprint', viewport: 'Viewport' },
+      follow: ['Suivre le thème', 'Police et couleurs du thème dans la barre des tâches.'],
       line: ['Deuxième ligne', 'Sous le temps du jour.'], lineApp: 'App', lineGoal: 'Objectif', lineNone: 'Rien',
       bar: ["Barre d'objectif", "Un trait fin qui se remplit jusqu'à ton objectif."] },
     goalPct: '62 % de 8 h',
@@ -500,7 +585,8 @@ const I18N = {
       theme: ['Theme', 'The look of the window and of the widget.'],
       back: 'Back', next: 'Continue', done: 'Get started', applying: 'Applying…' },
     prefs: { title: 'Appearance', lead: 'Theme of the window and of the taskbar widget. Applied right away.', close: 'Done', theme: 'Theme', widget: 'Taskbar widget',
-      themes: { default: 'Dark', light: 'Light', terminal: 'Terminal' },
+      themes: { default: 'Dark', light: 'Light', terminal: 'Terminal', blueprint: 'Blueprint', viewport: 'Viewport' },
+      follow: ['Follow the theme', "The theme's font and colours on the taskbar."],
       line: ['Second line', "Under today's time."], lineApp: 'App', lineGoal: 'Goal', lineNone: 'None',
       bar: ['Goal bar', 'A thin line that fills up to your daily goal.'] },
     goalPct: '62% of 8 h',
@@ -537,11 +623,14 @@ let T = I18N.en, CONF = {};
 const PALETTES = {
   default: ['#0a84ff', '#ff9f0a', '#30d158', '#bf5af2', '#ff375f', '#64d2ff', '#ffd60a', '#5e5ce6'],
   terminal: ['#33ff66', '#ffb000', '#00e5ff', '#ff5f56', '#b3ff00', '#ff79c6', '#d0d0d0', '#7aa2ff'],
+  blueprint: ['#ffffff', '#7fd4ff', '#ffd27f', '#9effc8', '#ff9e9e', '#c9b3ff', '#b0c4de', '#ffe9a8'],
+  viewport: ['#5285a6', '#c7a14a', '#6fa36f', '#a65d5d', '#8a74b3', '#4fa3a3', '#b08a5a', '#7d8fa6'],
 };
 let PALETTE = PALETTES.default;
 // Themes: the page look (CSS html[data-theme]) and the taskbar widget's style.
-const THEME_IDS = ['default', 'light', 'terminal'];
-const THEME_PV = { default: ['#000', '#1c1c1e', '#bf5af2', '#f5f5f7'], light: ['#f5f5f7', '#fff', '#9b3dd6', '#1d1d1f'], terminal: ['#030703', '#071007', '#33ff66', '#2ec85a'] };
+const THEME_IDS = ['default', 'light', 'terminal', 'blueprint', 'viewport'];
+const THEME_PV = { default: ['#000', '#1c1c1e', '#bf5af2', '#f5f5f7'], light: ['#f5f5f7', '#fff', '#9b3dd6', '#1d1d1f'], terminal: ['#030703', '#071007', '#33ff66', '#2ec85a'],
+  blueprint: ['#0d3b72', '#0d3b72', '#7fd4ff', '#ffffff'], viewport: ['#393939', '#5d5d5d', '#5285a6', '#dddddd'] };
 function applyTheme(t) {
   if (!THEME_IDS.includes(t)) t = 'default';
   document.documentElement.dataset.theme = t;
@@ -553,12 +642,13 @@ function themeCards(current, names) {
   return `<div class="theme-cards">${THEME_IDS.map(t => { const [bg, card, acc, text] = THEME_PV[t];
     return `<button type="button" data-theme-pick="${t}" class="${t === current ? 'on' : ''}"><div class="pv" style="background:${bg}">
       <i style="background:${acc};width:55%"></i><i style="background:${text};width:80%;opacity:.8"></i><i style="background:${card === '#fff' ? '#e8e8ed' : card};width:65%;outline:1px solid ${acc}33"></i></div>
-      <b style="${t === 'terminal' ? 'font-family:Courier New,monospace' : ''}">${names[t]}</b></button>`; }).join('')}</div>`;
+      <b style="${{ terminal: 'font-family:Courier New,monospace', blueprint: 'font-family:Bahnschrift,sans-serif' }[t] || ''}">${names[t]}</b></button>`; }).join('')}</div>`;
 }
 // Taskbar preview, in the widget's style for the theme.
-function taskbarPreview(on, theme, line, bar) {
+function taskbarPreview(on, theme, line, bar, follow = true) {
+  if (!follow) theme = 'default';
   const l2 = { app: 'Maya · 1 h 02', goal: T.goalPct ? T.goalPct : '62 % · 8 h', none: '' }[line] ?? 'Maya · 1 h 02';
-  return `<div class="taskbar ${on ? 'on' : ''} ${theme === 'terminal' ? 'terminal' : ''}" id="wl-preview"><div class="w"><b>${theme === 'terminal' ? '&gt; ' : ''}2 h 14</b>${l2 ? `<span>${l2}</span>` : ''}${bar ? '<span class="gbar"><i></i></span>' : ''}</div><div class="clock">14:32<br>24/11/2026</div></div>`;
+  return `<div class="taskbar ${on ? 'on' : ''} ${theme}" id="wl-preview"><div class="w"><b>${theme === 'terminal' ? '&gt; ' : ''}2 h 14</b>${l2 ? `<span>${l2}</span>` : ''}${bar ? '<span class="gbar"><i></i></span>' : ''}</div><div class="clock">14:32<br>24/11/2026</div></div>`;
 }
 async function savePrefs(p) {
   Object.assign(CONF, p);
@@ -1333,7 +1423,8 @@ function drawPrefs() {
   $('#pf-body').innerHTML = `<h2 style="margin-top:20px">${P.theme}</h2>${themeCards(CONF.theme, P.themes)}
     <h2 style="margin-top:26px">${P.widget}</h2>
     <label class="opt"><div><b>${T.setup.widget[0]}</b><span>${T.setup.widget[1]}</span></div><input type="checkbox" data-pk="widget" ${CONF.widget ? 'checked' : ''}><i class="switch"></i></label>
-    ${taskbarPreview(CONF.widget, CONF.theme, CONF.widget_line, CONF.widget_bar)}
+    ${taskbarPreview(CONF.widget, CONF.theme, CONF.widget_line, CONF.widget_bar, CONF.widget_follow !== false)}
+    <label class="opt"><div><b>${P.follow[0]}</b><span>${P.follow[1]}</span></div><input type="checkbox" data-pk="widget_follow" ${CONF.widget_follow !== false ? 'checked' : ''}><i class="switch"></i></label>
     <div class="opt static"><div><b>${P.line[0]}</b><span>${P.line[1]}</span></div>${seg('widget_line', [['app', P.lineApp], ['goal', P.lineGoal], ['none', P.lineNone]])}</div>
     <label class="opt"><div><b>${P.bar[0]}</b><span>${P.bar[1]}</span></div><input type="checkbox" data-pk="widget_bar" ${CONF.widget_bar ? 'checked' : ''}><i class="switch"></i></label>`;
 }

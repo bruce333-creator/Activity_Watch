@@ -25,8 +25,8 @@ use windows::Win32::Graphics::Gdi::{
     AC_SRC_ALPHA, AC_SRC_OVER, ANTIALIASED_QUALITY, BLENDFUNCTION, CLIP_DEFAULT_PRECIS,
     CreateDIBSection, CreateFontW, DEFAULT_CHARSET, DT_CENTER, DT_END_ELLIPSIS, DT_NOPREFIX,
     DT_SINGLELINE, DT_VCENTER, DrawTextW, GdiFlush, GetDC, GetMonitorInfoW,
-    MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, OUT_DEFAULT_PRECIS, ReleaseDC,
-    SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
+    MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, NONANTIALIASED_QUALITY,
+    OUT_DEFAULT_PRECIS, ReleaseDC, SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
 };
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
@@ -1608,13 +1608,12 @@ pub fn main() -> i32 {
     dlog!("database: {}", db.display());
     let widget_on = store.meta("widget").as_deref() == Some("1");
     if let Ok(mut st) = WIDGET_STYLE.lock() {
-        st.terminal = store.meta("theme").as_deref() == Some("terminal");
-        st.line = match store.meta("widget_line").as_deref() {
-            Some("goal") => 1,
-            Some("none") => 2,
-            _ => 0,
-        };
-        st.bar = store.meta("widget_bar").as_deref() != Some("0");
+        *st = widget_style(
+            &store.meta("theme").unwrap_or_default(),
+            &store.meta("widget_line").unwrap_or_default(),
+            store.meta("widget_bar").as_deref() != Some("0"),
+            store.meta("widget_follow").as_deref() != Some("0"),
+        );
     }
     crate::hooks::register(crate::hooks::Hooks {
         set_widget: request_widget,
@@ -2117,31 +2116,50 @@ fn widget_refresh() {
 /// Draws the two lines with GDI (grey anti-aliasing, white on black), then turns brightness
 /// into per-pixel alpha so the text blends with any taskbar colour or transparency.
 /// Widget look, chosen in the dashboard (DB meta "theme", "widget_line", "widget_bar").
+#[derive(Clone, Copy, PartialEq)]
+enum WidgetLook {
+    Plain,
+    Terminal,
+    Blueprint,
+    Viewport,
+}
+
 #[derive(Clone, Copy)]
 struct WidgetStyle {
-    terminal: bool,
+    look: WidgetLook,
     /// Second line: 0 top app, 1 goal progress, 2 nothing.
     line: u8,
     bar: bool,
 }
 
-static WIDGET_STYLE: Mutex<WidgetStyle> = Mutex::new(WidgetStyle {
-    terminal: false,
+const DEFAULT_WIDGET: WidgetStyle = WidgetStyle {
+    look: WidgetLook::Plain,
     line: 0,
     bar: true,
-});
+};
+static WIDGET_STYLE: Mutex<WidgetStyle> = Mutex::new(DEFAULT_WIDGET);
 
-fn set_widget_style(theme: &str, line: &str, bar: bool) {
+/// `follow`: the widget takes the dashboard theme's font and colours (else the plain look).
+fn widget_style(theme: &str, line: &str, bar: bool, follow: bool) -> WidgetStyle {
+    WidgetStyle {
+        look: match (follow, theme) {
+            (true, "terminal") => WidgetLook::Terminal,
+            (true, "blueprint") => WidgetLook::Blueprint,
+            (true, "viewport") => WidgetLook::Viewport,
+            _ => WidgetLook::Plain,
+        },
+        line: match line {
+            "goal" => 1,
+            "none" => 2,
+            _ => 0,
+        },
+        bar,
+    }
+}
+
+fn set_widget_style(theme: &str, line: &str, bar: bool, follow: bool) {
     if let Ok(mut st) = WIDGET_STYLE.lock() {
-        *st = WidgetStyle {
-            terminal: theme == "terminal",
-            line: match line {
-                "goal" => 1,
-                "none" => 2,
-                _ => 0,
-            },
-            bar,
-        };
+        *st = widget_style(theme, line, bar, follow);
     }
     post_tray(WM_WIDGET, 2);
 }
@@ -2153,13 +2171,9 @@ fn widget_paint(hwnd: HWND, (x, y, w, h, dpi): (i32, i32, i32, i32, u32)) {
         .lock()
         .map(|t| t.clone())
         .unwrap_or_default();
-    let style = WIDGET_STYLE.lock().map(|s| *s).unwrap_or(WidgetStyle {
-        terminal: false,
-        line: 0,
-        bar: true,
-    });
+    let style = WIDGET_STYLE.lock().map(|s| *s).unwrap_or(DEFAULT_WIDGET);
     let (lang, paused) = tray(|t| (t.lang, t.paused)).unwrap_or((Lang::En, false));
-    let line1 = if style.terminal {
+    let line1 = if style.look == WidgetLook::Terminal {
         format!("> {}", short_duration(today.total))
     } else {
         short_duration(today.total)
@@ -2188,16 +2202,27 @@ fn widget_paint(hwnd: HWND, (x, y, w, h, dpi): (i32, i32, i32, i32, u32)) {
     };
     let light = taskbar_is_light();
     // Text colours (light / dark taskbar), accent of the progress bar.
-    let (c1, c2, accent): (Rgb, Rgb, Rgb) = match (style.terminal, light) {
-        (true, false) => ((0x33, 0xff, 0x66), (0x22, 0xb2, 0x4a), (0x33, 0xff, 0x66)),
-        (true, true) => ((0x0a, 0x7a, 0x2e), (0x0f, 0x5f, 0x26), (0x0a, 0x9a, 0x3a)),
-        (false, false) => ((0xff, 0xff, 0xff), (0xc4, 0xc4, 0xc4), (0xbf, 0x5a, 0xf2)),
-        (false, true) => ((0x1a, 0x1a, 0x1a), (0x5c, 0x5c, 0x5c), (0x9b, 0x3d, 0xd6)),
+    use WidgetLook::*;
+    let (c1, c2, accent): (Rgb, Rgb, Rgb) = match (style.look, light) {
+        (Terminal, false) => ((0x33, 0xff, 0x66), (0x22, 0xb2, 0x4a), (0x33, 0xff, 0x66)),
+        (Terminal, true) => ((0x0a, 0x7a, 0x2e), (0x0f, 0x5f, 0x26), (0x0a, 0x9a, 0x3a)),
+        (Blueprint, false) => ((0xff, 0xff, 0xff), (0x9f, 0xc9, 0xff), (0x6c, 0xc4, 0xff)),
+        (Blueprint, true) => ((0x0b, 0x3a, 0x6e), (0x2f, 0x5f, 0x95), (0x1f, 0x6f, 0xd1)),
+        (Viewport, false) => ((0xdc, 0xdc, 0xdc), (0xa0, 0xa0, 0xa0), (0x52, 0x85, 0xa6)),
+        (Viewport, true) => ((0x22, 0x22, 0x22), (0x55, 0x55, 0x55), (0x3d, 0x6f, 0x8f)),
+        (Plain, false) => ((0xff, 0xff, 0xff), (0xc4, 0xc4, 0xc4), (0xbf, 0x5a, 0xf2)),
+        (Plain, true) => ((0x1a, 0x1a, 0x1a), (0x5c, 0x5c, 0x5c), (0x9b, 0x3d, 0xd6)),
     };
-    let face = if style.terminal {
-        w!("Courier New")
+    let face = match style.look {
+        Terminal => w!("Courier New"),
+        Blueprint => w!("Bahnschrift"),
+        _ => w!("Segoe UI"),
+    };
+    // Viewport: aliased text, like the classic Maya interface.
+    let quality = if style.look == Viewport {
+        NONANTIALIASED_QUALITY
     } else {
-        w!("Segoe UI")
+        ANTIALIASED_QUALITY
     };
     let goal_part = (today.goal > 0 && style.bar && !paused)
         .then(|| (today.total as f64 / today.goal as f64).min(1.0));
@@ -2237,7 +2262,7 @@ fn widget_paint(hwnd: HWND, (x, y, w, h, dpi): (i32, i32, i32, i32, u32)) {
                     DEFAULT_CHARSET,
                     OUT_DEFAULT_PRECIS,
                     CLIP_DEFAULT_PRECIS,
-                    ANTIALIASED_QUALITY,
+                    quality,
                     0,
                     face,
                 )
