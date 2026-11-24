@@ -245,6 +245,10 @@ pub fn serve(db_path: &Path, mut cfg: Config, lang: Lang, icon: Option<IconFn>) 
                     "break_minutes": cfg.break_minutes,
                     "break_reminder_minutes": cfg.break_reminder_minutes,
                     "update": crate::update::available().map(|r| r.version),
+                    // First start: the page offers the taskbar widget and autostart.
+                    "onboarding": crate::hooks::get().is_some() && store.meta("onboarded").is_none(),
+                    "widget": store.meta("widget").as_deref() == Some("1"),
+                    "autostart": crate::hooks::get().is_some_and(|h| (h.autostart)()),
                 });
                 req.respond(
                     Response::from_string(body.to_string()).with_header(header("application/json")),
@@ -282,6 +286,25 @@ pub fn serve(db_path: &Path, mut cfg: Config, lang: Lang, icon: Option<IconFn>) 
                 Response::from_string(apps_json(&store, &cfg))
                     .with_header(header("application/json")),
             ),
+            "/api/onboarding" if method == tiny_http::Method::Post => {
+                let mut body = String::new();
+                let _ = std::io::Read::read_to_string(
+                    &mut std::io::Read::take(req.as_reader(), 1024),
+                    &mut body,
+                );
+                let v: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+                let widget = v["widget"].as_bool().unwrap_or(false);
+                let autostart = v["autostart"].as_bool();
+                let _ = store.set_meta("onboarded", "1");
+                if let Some(h) = crate::hooks::get() {
+                    (h.set_widget)(widget);
+                    if let Some(on) = autostart {
+                        (h.set_autostart)(on);
+                    }
+                }
+                dlog!("onboarding: widget {widget}, autostart {autostart:?}");
+                req.respond(Response::from_string("ok"))
+            }
             "/api/apps/rename" if method == tiny_http::Method::Post => {
                 let mut body = String::new();
                 let _ = std::io::Read::read_to_string(

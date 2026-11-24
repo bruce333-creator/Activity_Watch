@@ -9,8 +9,21 @@ use crate::project::project_from_title;
 use crate::store::Store;
 use crate::timeutil::{day_start, local_day, now_unix, range_days};
 use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::Duration;
+
+/// Today's screen time and most used app, shown by the taskbar widget.
+#[derive(Clone, Debug, Default)]
+pub struct Today {
+    pub total: i64,
+    pub top: Option<(String, i64)>,
+}
+
+pub static TODAY: Mutex<Today> = Mutex::new(Today {
+    total: 0,
+    top: None,
+});
 
 /// Open sessions are written to disk at least this often (max data loss on crash).
 pub const FLUSH_SECS: i64 = 60;
@@ -192,8 +205,16 @@ impl<P: SystemProbe> Collector<P> {
     }
 
     fn count_usage(&mut self, name: &str, secs: i64) {
-        *self.usage.entry(name.to_string()).or_default() += secs;
+        let used = self.usage.entry(name.to_string()).or_default();
+        *used += secs;
+        let used = *used;
         self.day_total += secs;
+        if let Ok(mut t) = TODAY.lock() {
+            t.total = self.day_total;
+            if t.top.as_ref().is_none_or(|(n, s)| n == name || used > *s) {
+                t.top = Some((name.to_string(), used));
+            }
+        }
     }
 
     fn check_notices(&mut self, now: i64) -> rusqlite::Result<()> {
@@ -260,6 +281,9 @@ impl<P: SystemProbe> Collector<P> {
         self.usage.clear();
         self.notified.clear();
         self.day_total = 0;
+        if let Ok(mut t) = TODAY.lock() {
+            *t = Today::default();
+        }
         for s in self
             .store
             .sessions_between(day_start(day, self.offset), now)?

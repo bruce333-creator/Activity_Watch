@@ -54,7 +54,7 @@ Your data (history, custom names and logos) lives in `%APPDATA%\Ounce\` and is n
 Double-click `ounce.exe`. The logo (white clock on black) appears in the notification area; it may be hidden under the ^ arrow. Drag it onto the taskbar to keep it visible.
 
 - **Left click**: opens Ounce in its own window.
-- **Right click**: *Open Ounce*, *Weekly Wrapped*, *Pause / Resume tracking* (the icon turns grey), *Run at Windows startup* (checkbox), *Edit settings…* (opens `config.toml` in Notepad), *Quit*.
+- **Right click**: *Open Ounce*, *Weekly Wrapped*, *Pause / Resume tracking* (the icon turns grey), *Run at Windows startup* (checkbox), *Show on the taskbar* (checkbox), *Edit settings…* (opens `config.toml` in Notepad), *Quit*.
 
 Everything is in English. A French translation is available with `language = "fr"`.
 
@@ -89,6 +89,16 @@ To go back, use "Restore the original name" and "Restore the original logo". Giv
 
 Everything is saved in the database (`%APPDATA%\Ounce\activity.db`): it is permanent, including after an update or a restart.
 
+### First start
+
+The first time Ounce runs on a PC, its window opens with two choices: **Show on the taskbar** (off by default) and **Start with Windows**. Both can be changed later from the tray menu.
+
+### Taskbar widget
+
+A tiny counter on the taskbar, just left of the notification area: today's screen time and your most used app (*2 h 14 · Maya · 1 h 02*). Click it to open Ounce, right-click to hide it. It follows the taskbar's light or dark theme, hides behind full-screen apps (games, videos, presentations) and when the taskbar auto-hides.
+
+It costs nothing between updates: it is redrawn every 30 s and when the foreground window changes, never by polling. Off by default; turn it on in the tray menu (*Show on the taskbar*) or at first start.
+
 ### Notifications
 
 Native Windows notifications, turned off with `notifications = false`:
@@ -98,6 +108,16 @@ Native Windows notifications, turned off with `notifications = false`:
 - **Daily goal** reached, once a day.
 - **Wrapped ready** on the first use of a new week; a click opens it. With `wrapped_auto_open = true` it opens directly.
 - **Update available**, once per new version; a click installs it.
+
+### Project images
+
+In *Today*, *Week* or *Month*, the **Export image** button of the *Projects* card turns your project time into a 1080×1350 picture, in several styles:
+
+- **Minimal**: clean, Apple-like;
+- **Receipt**: your time itemized on a till receipt, with a barcode;
+- **Arcade**: a high-score table with levels, XP and combos.
+
+Each one shows the total time on projects, the share of screen time, and for every project: time, app, sessions and active days; plus the longest session, number of sessions, active days, average session and peak hour. More styles will come: a style is one drawing function added to `THEMES` in `assets/dashboard.html`.
 
 ### Time per project (3D artists)
 

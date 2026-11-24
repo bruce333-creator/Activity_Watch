@@ -5,6 +5,7 @@
 
 mod collector;
 mod config;
+mod hooks;
 mod log;
 mod notice;
 mod png;

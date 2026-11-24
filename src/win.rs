@@ -16,9 +16,17 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use windows::ApplicationModel::{StartupTask, StartupTaskState};
+use windows::Win32::Foundation::{COLORREF, RECT, SIZE};
 use windows::Win32::Foundation::{
     CloseHandle, ERROR_ALREADY_EXISTS, FILETIME, GetLastError, HANDLE, HINSTANCE, HWND, LPARAM,
     LRESULT, POINT, WPARAM,
+};
+use windows::Win32::Graphics::Gdi::{
+    AC_SRC_ALPHA, AC_SRC_OVER, ANTIALIASED_QUALITY, BLENDFUNCTION, CLIP_DEFAULT_PRECIS,
+    CreateDIBSection, CreateFontW, DEFAULT_CHARSET, DT_CENTER, DT_END_ELLIPSIS, DT_NOPREFIX,
+    DT_SINGLELINE, DT_VCENTER, DrawTextW, GdiFlush, GetDC, GetMonitorInfoW,
+    MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow, OUT_DEFAULT_PRECIS, ReleaseDC,
+    SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
 };
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
@@ -39,6 +47,7 @@ use windows::Win32::System::Console::{
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+use windows::Win32::System::Registry::RRF_RT_REG_DWORD;
 use windows::Win32::System::Registry::{
     HKEY_CURRENT_USER, REG_SZ, RRF_RT_REG_SZ, RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW,
 };
@@ -55,10 +64,13 @@ use windows::Win32::System::Threading::{
     ProcessPowerThrottling, QueryFullProcessImageNameW, SetPriorityClass, SetProcessInformation,
     TerminateProcess, WaitForSingleObject,
 };
+use windows::Win32::UI::Accessibility::{HWINEVENTHOOK, SetWinEventHook, UnhookWinEvent};
+use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+use windows::Win32::UI::Shell::{ABM_GETSTATE, ABS_AUTOHIDE, APPBARDATA, SHAppBarMessage};
 use windows::Win32::UI::Shell::{
     NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_TIP, NIIF_LARGE_ICON, NIIF_USER, NIM_ADD, NIM_DELETE,
     NIM_MODIFY, NIN_BALLOONUSERCLICK, NOTIFYICONDATAW, SHDefExtractIconW, Shell_NotifyIconW,
@@ -74,6 +86,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
     TPM_NONOTIFY, TPM_RETURNCMD, TPM_RIGHTBUTTON, TrackPopupMenu, TranslateMessage,
     WINDOW_EX_STYLE, WM_APP, WM_CONTEXTMENU, WM_ENDSESSION, WM_LBUTTONUP, WM_NULL,
     WM_QUERYENDSESSION, WM_RBUTTONUP, WNDCLASSW, WS_OVERLAPPED,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    DestroyWindow, EVENT_SYSTEM_FOREGROUND, FindWindowExW, GetClassNameW, GetWindowRect,
+    HWND_TOPMOST, IDC_HAND, LoadCursorW, MA_NOACTIVATE, SW_HIDE, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOSIZE, SWP_SHOWWINDOW, SetTimer, SetWindowPos, ShowWindow, ULW_ALPHA, UpdateLayeredWindow,
+    WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_DISPLAYCHANGE, WM_DPICHANGED,
+    WM_MOUSEACTIVATE, WM_SETTINGCHANGE, WM_TIMER, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_POPUP,
 };
 use windows::core::{HSTRING, PCWSTR, PWSTR, w};
 
@@ -579,6 +599,8 @@ const WM_TRAY: u32 = WM_APP + 1;
 const WM_NOTICE: u32 = WM_APP + 2;
 /// The new exe is in place: start it and exit.
 const WM_RESTART: u32 = WM_APP + 3;
+/// Show (wParam 1) or hide (0) the taskbar widget.
+const WM_WIDGET: u32 = WM_APP + 4;
 const ID_OPEN: u32 = 1;
 const ID_WRAPPED: u32 = 2;
 const ID_PAUSE: u32 = 3;
@@ -586,6 +608,7 @@ const ID_STARTUP: u32 = 4;
 const ID_QUIT: u32 = 5;
 const ID_UPDATE: u32 = 6;
 const ID_SETTINGS: u32 = 7;
+const ID_WIDGET: u32 = 8;
 
 /// State of the tray, used from its window procedure (main thread).
 struct Tray {
@@ -599,6 +622,8 @@ struct Tray {
     /// Page opened when the last notification is clicked.
     notice_page: &'static str,
     config: PathBuf,
+    db: PathBuf,
+    widget: bool,
 }
 
 static TRAY: Mutex<Option<Tray>> = Mutex::new(None);
@@ -704,7 +729,7 @@ fn stop_collector() {
 }
 
 fn show_menu(hwnd: HWND) {
-    let Some((lang, paused, port)) = tray(|t| (t.lang, t.paused, t.port)) else {
+    let Some((lang, paused, port, widget)) = tray(|t| (t.lang, t.paused, t.port, t.widget)) else {
         return;
     };
     let m = menu(lang);
@@ -730,6 +755,11 @@ fn show_menu(hwnd: HWND) {
             } else {
                 MF_STRING
             },
+        );
+        item(
+            ID_WIDGET,
+            m.widget,
+            if widget { MF_CHECKED } else { MF_STRING },
         );
         item(ID_SETTINGS, m.settings, MF_STRING);
         let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
@@ -770,6 +800,7 @@ fn show_menu(hwnd: HWND) {
                     }
                 );
                 set_tray_icon(hwnd, false);
+                widget_refresh();
             }
             ID_STARTUP => {
                 let enable = !autostart_enabled();
@@ -787,6 +818,7 @@ fn show_menu(hwnd: HWND) {
                 PostQuitMessage(0);
             }
             ID_UPDATE => install_update(),
+            ID_WIDGET => set_widget(!widget),
             ID_SETTINGS => {
                 if let Some(path) = tray(|t| t.config.clone()) {
                     let _ = std::process::Command::new("notepad.exe").arg(path).spawn();
@@ -853,6 +885,7 @@ unsafe extern "system" fn tray_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                 }
             }
         }
+        WM_WIDGET => set_widget(wp.0 != 0),
         WM_QUERYENDSESSION => return LRESULT(1),
         WM_ENDSESSION => {
             // Windows is shutting down / logging off: save the current session now.
@@ -863,7 +896,10 @@ unsafe extern "system" fn tray_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
             return LRESULT(0);
         }
         // Explorer restarted: the icon must be added again.
-        m if m != 0 && m == TASKBAR_CREATED.load(Ordering::Relaxed) => set_tray_icon(hwnd, true),
+        m if m != 0 && m == TASKBAR_CREATED.load(Ordering::Relaxed) => {
+            set_tray_icon(hwnd, true);
+            widget_refresh();
+        }
         _ => {}
     }
     unsafe { DefWindowProcW(hwnd, msg, wp, lp) }
@@ -1208,6 +1244,7 @@ pub fn main() -> i32 {
     let _ = std::fs::remove_file(exe.with_extension("exe.new"));
 
     let db = data_dir.join("activity.db");
+    let fresh_install = !db.exists();
     let store = match Store::open(&db) {
         Ok(s) => s,
         Err(e) => {
@@ -1216,6 +1253,14 @@ pub fn main() -> i32 {
         }
     };
     dlog!("database: {}", db.display());
+    let widget_on = store.meta("widget").as_deref() == Some("1");
+    crate::hooks::register(crate::hooks::Hooks {
+        set_widget: request_widget,
+        set_autostart: |on| {
+            std::env::current_exe().is_ok_and(|exe| set_autostart(&exe, on).is_ok())
+        },
+        autostart: autostart_enabled,
+    });
 
     let port = cfg.web_port;
     {
@@ -1235,6 +1280,8 @@ pub fn main() -> i32 {
         wrapped_auto_open: cfg.wrapped_auto_open,
         notice_page: "",
         config: config_path,
+        db: db.clone(),
+        widget: widget_on,
     });
     let (notify, check_updates) = (cfg.notifications, cfg.check_updates);
     let mut collector = Collector::new(WinProbe::new(), store, cfg);
@@ -1248,6 +1295,14 @@ pub fn main() -> i32 {
     };
     tray(|t| t.worker = Some(worker));
     set_tray_icon(hwnd, true);
+    if widget_on {
+        widget_create();
+        widget_refresh();
+    }
+    // First start on this PC: open the window, which offers the widget and autostart.
+    if fresh_install {
+        open_ui(port, "");
+    }
 
     update::set_installer(install_update);
     if updated && notify {
@@ -1269,6 +1324,7 @@ pub fn main() -> i32 {
         }
         let _ = Shell_NotifyIconW(NIM_DELETE, &icon_data(hwnd));
     }
+    widget_destroy();
     stop_collector();
     dlog!("exit");
     0
@@ -1352,6 +1408,15 @@ fn selftest(cfg: Config, lang: Lang, exe: &Path) -> i32 {
             .to_string())
     );
     println!("samples / errors   : {ticks} / {errors}");
+    widget_create();
+    widget_refresh();
+    let widget = match (widget_hwnd(), widget_place()) {
+        (None, _) => "FAILED to create".to_string(),
+        (Some(_), None) => "created (no taskbar found or auto-hidden)".to_string(),
+        (Some(_), Some((x, y, w, h, dpi))) => format!("drawn at {x},{y} size {w}x{h}, dpi {dpi}"),
+    };
+    widget_destroy();
+    println!("taskbar widget     : {widget}");
     println!("update check       : {update_check}");
     println!(
         "Store package      : {}",
@@ -1395,5 +1460,427 @@ fn selftest(cfg: Config, lang: Lang, exe: &Path) -> i32 {
     } else {
         println!("SELFTEST FAILED");
         1
+    }
+}
+
+// ---------------------------------------------------------------- taskbar widget
+
+/// Today's time, drawn on the taskbar next to the notification area. Off by default; offered
+/// on the first start. Event driven: redrawn every 30 s and when the foreground window changes
+/// (to stay above the taskbar and hide behind full-screen apps).
+static WIDGET: AtomicIsize = AtomicIsize::new(0);
+static WIDGET_HOOK: AtomicIsize = AtomicIsize::new(0);
+
+fn widget_hwnd() -> Option<HWND> {
+    let h = WIDGET.load(Ordering::Relaxed);
+    (h != 0).then(|| HWND(h as *mut _))
+}
+
+/// From any thread: the tray thread owns the widget window.
+fn request_widget(on: bool) {
+    let hwnd = TRAY_HWND.load(Ordering::Relaxed);
+    if hwnd != 0 {
+        unsafe {
+            let _ = PostMessageW(
+                Some(HWND(hwnd as *mut _)),
+                WM_WIDGET,
+                WPARAM(on as usize),
+                LPARAM(0),
+            );
+        }
+    }
+}
+
+/// Tray thread: shows or hides the widget and remembers the choice.
+fn set_widget(on: bool) {
+    if let Some(db) = tray(|t| {
+        t.widget = on;
+        t.db.clone()
+    }) {
+        if let Ok(store) = Store::open(&db) {
+            let _ = store.set_meta("widget", if on { "1" } else { "0" });
+        }
+    }
+    dlog!("taskbar widget {}", if on { "on" } else { "off" });
+    if on {
+        widget_create();
+        widget_refresh();
+    } else {
+        widget_destroy();
+    }
+}
+
+fn widget_create() {
+    if widget_hwnd().is_some() {
+        return;
+    }
+    unsafe {
+        let module = GetModuleHandleW(None).unwrap_or_default();
+        let class = w!("OunceWidget");
+        let wc = WNDCLASSW {
+            lpfnWndProc: Some(widget_proc),
+            hInstance: HINSTANCE(module.0),
+            lpszClassName: class,
+            hCursor: LoadCursorW(None, IDC_HAND).unwrap_or_default(),
+            ..Default::default()
+        };
+        let _ = RegisterClassW(&wc); // fails harmlessly when already registered
+        let Ok(hwnd) = CreateWindowExW(
+            WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_NOACTIVATE,
+            class,
+            w!("Ounce"),
+            WS_POPUP,
+            0,
+            0,
+            0,
+            0,
+            None,
+            None,
+            Some(HINSTANCE(module.0)),
+            None,
+        ) else {
+            dlog!("error: cannot create the taskbar widget");
+            return;
+        };
+        WIDGET.store(hwnd.0 as isize, Ordering::Relaxed);
+        SetTimer(Some(hwnd), 1, 30_000, None);
+        let hook = SetWinEventHook(
+            EVENT_SYSTEM_FOREGROUND,
+            EVENT_SYSTEM_FOREGROUND,
+            None,
+            Some(widget_event),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+        );
+        WIDGET_HOOK.store(hook.0 as isize, Ordering::Relaxed);
+    }
+}
+
+fn widget_destroy() {
+    unsafe {
+        let hook = WIDGET_HOOK.swap(0, Ordering::Relaxed);
+        if hook != 0 {
+            let _ = UnhookWinEvent(HWINEVENTHOOK(hook as *mut _));
+        }
+        if let Some(hwnd) = widget_hwnd() {
+            let _ = DestroyWindow(hwnd);
+        }
+    }
+    WIDGET.store(0, Ordering::Relaxed);
+}
+
+unsafe extern "system" fn widget_event(
+    _hook: HWINEVENTHOOK,
+    _event: u32,
+    _hwnd: HWND,
+    _object: i32,
+    _child: i32,
+    _thread: u32,
+    _time: u32,
+) {
+    widget_refresh();
+}
+
+unsafe extern "system" fn widget_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
+    match msg {
+        WM_TIMER | WM_DISPLAYCHANGE | WM_SETTINGCHANGE | WM_DPICHANGED => widget_refresh(),
+        WM_LBUTTONUP => {
+            if let Some(port) = tray(|t| t.port) {
+                open_ui(port, "");
+            }
+        }
+        WM_RBUTTONUP => widget_menu(hwnd),
+        WM_MOUSEACTIVATE => return LRESULT(MA_NOACTIVATE as isize),
+        _ => {}
+    }
+    unsafe { DefWindowProcW(hwnd, msg, wp, lp) }
+}
+
+fn widget_menu(hwnd: HWND) {
+    let Some((lang, port)) = tray(|t| (t.lang, t.port)) else {
+        return;
+    };
+    let m = menu(lang);
+    unsafe {
+        let Ok(hmenu) = CreatePopupMenu() else { return };
+        for (id, text) in [(ID_OPEN, m.open), (ID_WIDGET, m.widget_hide)] {
+            let text = HSTRING::from(text);
+            let _ = AppendMenuW(hmenu, MF_STRING, id as usize, PCWSTR(text.as_ptr()));
+        }
+        let mut pt = POINT::default();
+        let _ = GetCursorPos(&mut pt);
+        let _ = SetForegroundWindow(hwnd);
+        let cmd = TrackPopupMenu(
+            hmenu,
+            TPM_RIGHTBUTTON | TPM_RETURNCMD | TPM_NONOTIFY,
+            pt.x,
+            pt.y,
+            None,
+            hwnd,
+            None,
+        );
+        let _ = DestroyMenu(hmenu);
+        match cmd.0 as u32 {
+            ID_OPEN => open_ui(port, ""),
+            ID_WIDGET => set_widget(false),
+            _ => {}
+        }
+    }
+}
+
+/// Screen rectangle (x, y, w, h) and DPI for the widget, or None when it must not show.
+fn widget_place() -> Option<(i32, i32, i32, i32, u32)> {
+    unsafe {
+        let bar = FindWindowW(w!("Shell_TrayWnd"), PCWSTR::null()).ok()?;
+        let mut abd = APPBARDATA {
+            cbSize: size_of::<APPBARDATA>() as u32,
+            ..Default::default()
+        };
+        // An auto-hidden taskbar is usually not on screen: do not float over the desktop.
+        if SHAppBarMessage(ABM_GETSTATE, &mut abd) as u32 & ABS_AUTOHIDE != 0 {
+            return None;
+        }
+        let mut r = RECT::default();
+        GetWindowRect(bar, &mut r).ok()?;
+        let dpi = GetDpiForWindow(bar).max(96);
+        let s = |v: i32| v * dpi as i32 / 96;
+        let mut n = RECT::default();
+        let notify = FindWindowExW(Some(bar), None, w!("TrayNotifyWnd"), PCWSTR::null())
+            .ok()
+            .filter(|&h| GetWindowRect(h, &mut n).is_ok() && n.right > n.left);
+        if r.right - r.left > r.bottom - r.top {
+            let (w, h) = (s(112), r.bottom - r.top);
+            let right = if notify.is_some() {
+                n.left
+            } else {
+                r.right - s(320)
+            };
+            Some((right - w - s(4), r.top, w, h, dpi))
+        } else {
+            let (w, h) = (r.right - r.left, s(44));
+            let bottom = if notify.is_some() {
+                n.top
+            } else {
+                r.bottom - s(320)
+            };
+            Some((r.left, bottom - h - s(4), w, h, dpi))
+        }
+    }
+}
+
+/// A full-screen app (game, video, presentation) is in front: the widget stays hidden.
+fn foreground_is_fullscreen() -> bool {
+    unsafe {
+        let fg = GetForegroundWindow();
+        if fg.is_invalid() {
+            return false;
+        }
+        let mut class = [0u16; 32];
+        let n = GetClassNameW(fg, &mut class) as usize;
+        let class = String::from_utf16_lossy(&class[..n]);
+        if matches!(class.as_str(), "Progman" | "WorkerW" | "Shell_TrayWnd") {
+            return false;
+        }
+        let mut r = RECT::default();
+        if GetWindowRect(fg, &mut r).is_err() {
+            return false;
+        }
+        let mut mi = MONITORINFO {
+            cbSize: size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        if !GetMonitorInfoW(MonitorFromWindow(fg, MONITOR_DEFAULTTONEAREST), &mut mi).as_bool() {
+            return false;
+        }
+        let m = mi.rcMonitor;
+        r.left <= m.left && r.top <= m.top && r.right >= m.right && r.bottom >= m.bottom
+    }
+}
+
+fn taskbar_is_light() -> bool {
+    let mut value = 0u32;
+    let mut size = 4u32;
+    unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize"),
+            w!("SystemUsesLightTheme"),
+            RRF_RT_REG_DWORD,
+            None,
+            Some((&mut value as *mut u32).cast()),
+            Some(&mut size),
+        )
+        .is_ok()
+            && value == 1
+    }
+}
+
+fn short_duration(secs: i64) -> String {
+    let m = secs.max(0) / 60;
+    if m < 60 {
+        format!("{m} min")
+    } else {
+        format!("{} h {:02}", m / 60, m % 60)
+    }
+}
+
+fn widget_refresh() {
+    let Some(hwnd) = widget_hwnd() else { return };
+    match widget_place().filter(|_| !foreground_is_fullscreen()) {
+        Some(place) => unsafe {
+            widget_paint(hwnd, place);
+            let _ = SetWindowPos(
+                hwnd,
+                Some(HWND_TOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            );
+        },
+        None => unsafe {
+            let _ = ShowWindow(hwnd, SW_HIDE);
+        },
+    }
+}
+
+/// Draws the two lines with GDI (grey anti-aliasing, white on black), then turns brightness
+/// into per-pixel alpha so the text blends with any taskbar colour or transparency.
+fn widget_paint(hwnd: HWND, (x, y, w, h, dpi): (i32, i32, i32, i32, u32)) {
+    let today = crate::collector::TODAY
+        .lock()
+        .map(|t| t.clone())
+        .unwrap_or_default();
+    let (lang, paused) = tray(|t| (t.lang, t.paused)).unwrap_or((Lang::En, false));
+    let line1 = short_duration(today.total);
+    let line2 = if paused {
+        menu(lang).paused_short.to_string()
+    } else {
+        today
+            .top
+            .map(|(name, s)| format!("{name} · {}", short_duration(s)))
+            .unwrap_or_default()
+    };
+    let (c1, c2): ((u32, u32, u32), (u32, u32, u32)) = if taskbar_is_light() {
+        ((0x1a, 0x1a, 0x1a), (0x5c, 0x5c, 0x5c))
+    } else {
+        ((0xff, 0xff, 0xff), (0xc4, 0xc4, 0xc4))
+    };
+    let px = |v: i32| v * dpi as i32 / 96;
+    let two = !line2.is_empty();
+    let split = h / 2 + px(1);
+    unsafe {
+        let screen = GetDC(None);
+        let mem = CreateCompatibleDC(Some(screen));
+        let bmi = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: w,
+                biHeight: -h,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut bits: *mut core::ffi::c_void = std::ptr::null_mut();
+        if let Ok(dib) = CreateDIBSection(Some(mem), &bmi, DIB_RGB_COLORS, &mut bits, None, 0) {
+            let old = SelectObject(mem, dib.into());
+            SetBkMode(mem, TRANSPARENT);
+            SetTextColor(mem, COLORREF(0x00ff_ffff));
+            let font = |size: i32, weight: i32| {
+                CreateFontW(
+                    -px(size),
+                    0,
+                    0,
+                    0,
+                    weight,
+                    0,
+                    0,
+                    0,
+                    DEFAULT_CHARSET,
+                    OUT_DEFAULT_PRECIS,
+                    CLIP_DEFAULT_PRECIS,
+                    ANTIALIASED_QUALITY,
+                    0,
+                    w!("Segoe UI"),
+                )
+            };
+            let flags = DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS;
+            let f1 = font(if two { 14 } else { 15 }, 600);
+            let prev = SelectObject(mem, f1.into());
+            let mut r1 = if two {
+                RECT {
+                    left: px(2),
+                    top: split - px(19),
+                    right: w - px(2),
+                    bottom: split,
+                }
+            } else {
+                RECT {
+                    left: 0,
+                    top: 0,
+                    right: w,
+                    bottom: h,
+                }
+            };
+            let mut t1: Vec<u16> = line1.encode_utf16().collect();
+            DrawTextW(mem, &mut t1, &mut r1, flags);
+            if two {
+                let f2 = font(11, 400);
+                SelectObject(mem, f2.into());
+                let mut r2 = RECT {
+                    left: px(3),
+                    top: split,
+                    right: w - px(3),
+                    bottom: split + px(16),
+                };
+                let mut t2: Vec<u16> = line2.encode_utf16().collect();
+                DrawTextW(mem, &mut t2, &mut r2, flags);
+                SelectObject(mem, f1.into());
+                let _ = DeleteObject(f2.into());
+            }
+            SelectObject(mem, prev);
+            let _ = DeleteObject(f1.into());
+            let _ = GdiFlush();
+            // Alpha 1 (invisible) on the background keeps the whole widget clickable.
+            let pixels = std::slice::from_raw_parts_mut(bits as *mut u32, (w * h) as usize);
+            for (i, p) in pixels.iter_mut().enumerate() {
+                let a = ((*p >> 16) & 0xff)
+                    .max((*p >> 8) & 0xff)
+                    .max(*p & 0xff)
+                    .max(1);
+                let (r, g, b) = if two && (i as i32 / w) >= split {
+                    c2
+                } else {
+                    c1
+                };
+                *p = (a << 24) | ((r * a / 255) << 16) | ((g * a / 255) << 8) | (b * a / 255);
+            }
+            let blend = BLENDFUNCTION {
+                BlendOp: AC_SRC_OVER as u8,
+                BlendFlags: 0,
+                SourceConstantAlpha: 255,
+                AlphaFormat: AC_SRC_ALPHA as u8,
+            };
+            let _ = UpdateLayeredWindow(
+                hwnd,
+                Some(screen),
+                Some(&POINT { x, y }),
+                Some(&SIZE { cx: w, cy: h }),
+                Some(mem),
+                Some(&POINT::default()),
+                COLORREF(0),
+                Some(&blend),
+                ULW_ALPHA,
+            );
+            SelectObject(mem, old);
+            let _ = DeleteObject(dib.into());
+        }
+        let _ = DeleteDC(mem);
+        ReleaseDC(None, screen);
     }
 }
