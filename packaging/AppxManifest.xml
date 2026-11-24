@@ -36,7 +36,7 @@
         <desktop:Extension Category="windows.startupTask" Executable="activity-tracker.exe" EntryPoint="Windows.FullTrustApplication">
           <desktop:StartupTask TaskId="ActivityTracker" Enabled="false" DisplayName="Activity Tracker"/>
         </desktop:Extension>
-        <!-- Lets "activity-tracker.exe --selftest" run from a command prompt. -->
+        <!-- Makes activity-tracker.exe (and its selftest flag) runnable from a command prompt. -->
         <uap3:Extension Category="windows.appExecutionAlias" Executable="activity-tracker.exe" EntryPoint="Windows.FullTrustApplication">
           <uap3:AppExecutionAlias>
             <desktop:ExecutionAlias Alias="activity-tracker.exe"/>

@@ -42,15 +42,15 @@ Your data (history, custom names and logos) lives in `%APPDATA%\ActivityTracker\
 Double-click `activity-tracker.exe`. The logo (white clock on black) appears in the notification area; it may be hidden under the ^ arrow. Drag it onto the taskbar to keep it visible.
 
 - **Left click**: opens Activity Tracker in its own window.
-- **Right click**: *Open Activity Tracker*, *Weekly Wrapped*, *Pause / Resume tracking* (the icon turns grey), *Run at Windows startup* (checkbox), *Quit*.
+- **Right click**: *Open Activity Tracker*, *Weekly Wrapped*, *Pause / Resume tracking* (the icon turns grey), *Run at Windows startup* (checkbox), *Edit settings…* (opens `config.toml` in Notepad), *Quit*.
 
 Everything is in English. A French translation is available with `language = "fr"`.
 
-Launching the exe while it is already running just opens the window (one instance at a time).
+Launching the exe while it is already running just opens the window (one instance at a time). If the running copy comes from **another exe** (an older download, or the one started with Windows), it saves its session and closes, and the exe you launched takes over; autostart then points to the new exe.
 
 ### The window
 
-The interface opens in an **app window** (Microsoft Edge "app" mode, present on every Windows 10/11: no tabs, no address bar). It costs nothing while closed and does not grow the exe. Without Edge, the page opens in the default browser at `http://127.0.0.1:8765/`.
+The interface opens in an **app window** (Microsoft Edge "app" mode, present on every Windows 10/11: no tabs, no address bar). It uses its own Edge profile (in the data folder), so your browser never reopens it by itself and your extensions stay out of it. It costs nothing while closed and does not grow the exe. Without Edge, the page opens in the default browser at `http://127.0.0.1:8765/`.
 
 - **Today / Week / Month**:
   - screen time compared with the same previous period (yesterday at the same hour, etc.);
@@ -212,15 +212,33 @@ Rules:
 
 ### SmartScreen and antivirus
 
-An unsigned exe triggers SmartScreen ("Windows protected your PC") on its first downloads. Free ways to reduce or avoid it:
+An unsigned exe downloaded with a browser gets several warnings (Edge: "not commonly downloaded", then SmartScreen "Windows protected your PC"). There is no free code-signing certificate; the free ways around it:
 
-- **Updates are never affected**: the built-in updater downloads without the browser's "Mark of the Web", so SmartScreen only concerns the very first install.
-- **winget** (Windows' package manager): once the app is in the `winget-pkgs` repository, `winget install` downloads without the Mark of the Web, so no SmartScreen prompt. Free; submission is a pull request reviewed by Microsoft.
-- **Microsoft Store**: free individual developer account; the Store signs the MSIX package, so no warning at all. The Store build would need adaptations (the Store handles updates, autostart goes through the package manifest).
-- **Reputation**: the warning fades as more people download the same exe.
-- **False positive in an antivirus**: submit the exe to Microsoft (Microsoft Security Intelligence → "Submit a file", free), and check it on virustotal.com before each release.
+- **Microsoft Store (recommended)**: see below. The Store signs the app: no warning at all, one-click install, automatic updates.
+- **winget**: `winget install` downloads without the browser's "Mark of the Web", so no SmartScreen prompt. Submission is a pull request to `microsoft/winget-pkgs`.
+- **Updates are never affected**: the built-in updater downloads without the Mark of the Web; only the very first install from a browser is concerned.
+- **Antivirus false positive**: submit the exe at Microsoft Security Intelligence → "Submit a file" (free), and check it on virustotal.com before a release.
 
 A self-signed certificate is useless: Windows does not trust it.
+
+### Microsoft Store
+
+Every build produces `activity-tracker.msix` (artifact **activity-tracker-store** of the GitHub Actions run). CI installs it on Windows and runs its selftest, so the package is known to install and start.
+
+1. Create a developer account at https://storedeveloper.microsoft.com (free for individuals) and open **Partner Center → Apps and games → New product → MSIX or PWA app**. Reserve the name "Activity Tracker" (or another if taken).
+2. **Product identity** (Product management): copy *Package/Identity/Name*, *Package/Identity/Publisher* and *Package/Properties/PublisherDisplayName* into the repository variables (GitHub → Settings → Secrets and variables → Actions → **Variables**): `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER`, `MSIX_PUBLISHER_DISPLAY_NAME`.
+3. Run the workflow again (Actions → build → Run workflow) and download the **activity-tracker-store** artifact.
+4. Submission: upload `activity-tracker.msix` in **Packages**, fill **Store listing** with `docs/store-listing.md` and the images of `docs/press/`, **Properties**: category *Productivity*, privacy policy URL `https://github.com/bruce333-creator/Activity_Watch#privacy`. Pricing: free. In the *Submission options*, the restricted capability `runFullTrust` needs a sentence: "Desktop app: reads the foreground window to measure screen time; shows a tray icon."
+5. Certification usually takes a few days. Each new version: bump `Cargo.toml`, run the workflow, upload the new `.msix` in a new submission.
+
+The Store version behaves like the exe, except:
+- updates come from the Store (no update check of its own);
+- settings, log and data are in `%LOCALAPPDATA%\Packages\<package>\LocalState` (use *Edit settings…* in the tray menu);
+- *Run at Windows startup* uses the package's startup task, which also appears in Windows Settings → Apps → Startup.
+
+## Privacy
+
+Activity Tracker does not collect, send or share any personal data. Everything it records (which app is in the foreground and for how long, and the file name of known project files found in window titles) is stored only on your computer, in a local database you can delete at any time. The dashboard is served on `127.0.0.1` and cannot be reached from other computers. The only network request is a once-a-day check of this project's latest release on `api.github.com` (an anonymous request with no personal data), which can be turned off with `check_updates = false`; the Microsoft Store version makes none.
 
 ## License
 
@@ -251,5 +269,6 @@ The result is `target\release\activity-tracker.exe`. Win32 code lives only in `s
 | `src/server.rs` | Local dashboard (tiny_http, blocking accept), CSV export, custom names and logos |
 | `src/config.rs` | `config.toml` |
 | `src/probe.rs` | `SystemProbe` interface (+ fake probe for tests) |
-| `src/win.rs` | Win32: foreground window and title, idle, lock, exe icons, tray and notifications, Edge window, registry, update download and exe swap |
-| `assets/` | Dashboard page, logo, icons and Manrope font (embedded in the exe; `build.rs` also adds version info) |
+| `src/win.rs` | Win32: foreground window and title, idle, lock, exe icons, tray and notifications, Edge window, registry, update download and exe swap, Store package (data folder, startup task) |
+| `packaging/` | Microsoft Store manifest and tile images |
+| `assets/` | Dashboard page, logo (`logo.svg` is the source), icons and Manrope font (embedded in the exe; `build.rs` also adds version info) |
