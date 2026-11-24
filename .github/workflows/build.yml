@@ -146,7 +146,7 @@ jobs:
             target/release/activity-tracker.exe
           generate_release_notes: true
           body: |
-            **Download `ounce.exe` below**, put it in a folder of your own and double-click it.
+            **Download `ounce.exe` below** and double-click it: it installs itself (no admin rights), with a Start menu entry and an uninstaller in Settings > Apps.
             (`activity-tracker.exe` is the same file, for the automatic update of versions 0.5 and older.)
             Already installed? Click the update notification, or right-click the tray icon → *Install update*.
 
