@@ -31,6 +31,28 @@ pub struct ProjectTime {
     pub app: String,
     pub process: String,
     pub seconds: i64,
+    /// Work sessions on the project (gaps shorter than a few minutes are joined).
+    pub sessions: u32,
+    /// Longest such session.
+    pub longest: i64,
+    /// Local days the project was opened.
+    pub days: u32,
+    /// Local hour (0-23) with the most time on the project.
+    pub peak_hour: u8,
+    pub first: i64,
+    pub last: i64,
+}
+
+/// Per-project details gathered while scanning the sessions.
+#[derive(Default)]
+struct ProjectStat {
+    days: std::collections::HashSet<i64>,
+    sessions: u32,
+    longest: i64,
+    run: Option<(i64, i64)>,
+    hours: [i64; 24],
+    first: i64,
+    last: i64,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -75,6 +97,8 @@ pub struct Analysis {
     pub total: i64,
     pub apps: Vec<AppTime>,
     pub projects: Vec<ProjectTime>,
+    /// Local days with any project time.
+    pub project_days: u32,
     pub days: Vec<Bucket>,
     pub hours: Vec<i64>,
     pub segments: Vec<Segment>,
@@ -145,6 +169,7 @@ pub fn analyze(
     let mut apps: HashMap<String, HashMap<&str, i64>> = HashMap::new();
     let mut projects: HashMap<String, HashMap<&str, i64>> = HashMap::new();
     let mut project_app: HashMap<String, String> = HashMap::new();
+    let mut project_stats: HashMap<String, ProjectStat> = HashMap::new();
     let mut segments: Vec<Segment> = Vec::new();
     let mut stretches: Vec<(i64, i64)> = Vec::new();
     let mut w = Wellbeing::default();
@@ -175,6 +200,23 @@ pub fn analyze(
                 .entry(&s.process)
                 .or_default() += b - a;
             project_app.insert(p.clone(), name.clone());
+            let st = project_stats.entry(p.clone()).or_default();
+            st.run = match st.run {
+                Some((rs, re)) if a - re < SEGMENT_JOIN => Some((rs, b.max(re))),
+                _ => {
+                    st.sessions += 1;
+                    Some((a, b))
+                }
+            };
+            if let Some((rs, re)) = st.run {
+                st.longest = st.longest.max(re - rs);
+            }
+            st.first = if st.first == 0 { a } else { st.first.min(a) };
+            st.last = st.last.max(b);
+            for_each_hour(a, b, offset, |x, y, h, day| {
+                st.hours[h] += y - x;
+                st.days.insert(day);
+            });
         }
 
         for_each_hour(a, b, offset, |x, y, h, day| {
@@ -240,7 +282,13 @@ pub fn analyze(
         }
     }
 
+    let project_days = project_stats
+        .values()
+        .flat_map(|st| st.days.iter())
+        .collect::<std::collections::HashSet<_>>()
+        .len() as u32;
     Analysis {
+        project_days,
         total,
         apps: group(apps)
             .into_iter()
@@ -254,11 +302,21 @@ pub fn analyze(
             .collect(),
         projects: group(projects)
             .into_iter()
-            .map(|(name, process, seconds)| ProjectTime {
-                app: project_app[&name].clone(),
-                name,
-                process,
-                seconds,
+            .map(|(name, process, seconds)| {
+                let st = project_stats.remove(&name).unwrap_or_default();
+                let peak_hour = (0..24).max_by_key(|&h| (st.hours[h], 24 - h)).unwrap_or(0) as u8;
+                ProjectTime {
+                    app: project_app[&name].clone(),
+                    name,
+                    process,
+                    seconds,
+                    sessions: st.sessions,
+                    longest: st.longest,
+                    days: st.days.len() as u32,
+                    peak_hour,
+                    first: st.first,
+                    last: st.last,
+                }
             })
             .collect(),
         days,
@@ -305,6 +363,7 @@ pub struct Summary {
     /// Sorted by time; apps used only in the previous period come last with 0 seconds.
     pub apps: Vec<AppTime>,
     pub projects: Vec<ProjectTime>,
+    pub project_days: u32,
     /// "today": 24 hourly buckets; "week"/"month": one bucket per day.
     pub timeline: Vec<Bucket>,
     /// Today's blocks of app usage (empty for week/month).
@@ -383,6 +442,7 @@ pub fn summarize(
         days_elapsed: (today + 1).min(d1) - d0,
         goal: cfg.goal_secs(),
         apps: with_previous(a.apps, &prev.apps),
+        project_days: a.project_days,
         projects: a.projects.into_iter().take(10).collect(),
         timeline,
         segments: a.segments,
@@ -755,6 +815,11 @@ mod tests {
             ("robot.mb", "Maya")
         );
         assert_eq!(d.projects[0].seconds, 2 * 3600 + min(30));
+        // maya.exe 9-11 then mayabatch.exe 11-11:30: one session, on one day, peak at 9 h.
+        let p = &d.projects[0];
+        assert_eq!((p.sessions, p.longest, p.days), (1, 2 * 3600 + min(30), 1));
+        assert_eq!((p.first, p.last), (at(0, 9), at(0, 11) + min(30)));
+        assert_eq!(p.peak_hour, 9);
         assert_eq!(d.limits.len(), 1);
         assert_eq!((d.limits[0].limit, d.limits[0].seconds), (min(20), min(30)));
     }
