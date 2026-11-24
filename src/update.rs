@@ -6,7 +6,7 @@ use std::sync::{Mutex, OnceLock};
 /// Public GitHub repository whose Releases carry the exe (built by .github/workflows/build.yml).
 pub const REPO: &str = "bruce333-creator/Activity_Watch";
 /// Name of the exe attached to each Release.
-pub const ASSET: &str = "activity-tracker.exe";
+pub const ASSET: &str = "ounce.exe";
 pub const CURRENT: &str = env!("CARGO_PKG_VERSION");
 
 pub fn latest_url() -> String {
@@ -120,17 +120,17 @@ mod tests {
     const JSON: &str = r#"{"tag_name":"v0.5.0","draft":false,"prerelease":false,
         "html_url":"https://github.com/o/r/releases/tag/v0.5.0",
         "assets":[{"name":"notes.txt","browser_download_url":"https://x/notes.txt","size":3},
-                  {"name":"activity-tracker.exe","browser_download_url":"https://github.com/o/r/releases/download/v0.5.0/activity-tracker.exe","size":2100000}]}"#;
+                  {"name":"ounce.exe","browser_download_url":"https://github.com/o/r/releases/download/v0.5.0/ounce.exe","size":2100000}]}"#;
 
     #[test]
     fn latest_release() {
         let r = parse_latest(JSON, "0.4.0").unwrap();
         assert_eq!(r.version, "0.5.0");
-        assert!(r.url.ends_with("/activity-tracker.exe"));
+        assert!(r.url.ends_with("/ounce.exe"));
         assert_eq!(r.size, 2_100_000);
         assert_eq!(parse_latest(JSON, "0.5.0"), None);
         assert_eq!(
-            parse_latest(&JSON.replace("activity-tracker.exe", "other.exe"), "0.4.0"),
+            parse_latest(&JSON.replace("ounce.exe", "other.exe"), "0.4.0"),
             None
         );
         assert_eq!(

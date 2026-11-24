@@ -1,8 +1,8 @@
 [package]
-name = "activity-tracker"
+name = "ounce"
 version = "0.6.0"
 edition = "2024"
-description = "Lightweight Windows screen-time and activity tracker"
+description = "Screen time that weighs an ounce: a featherweight screen-time tracker for Windows"
 license = "MIT"
 
 [dependencies]

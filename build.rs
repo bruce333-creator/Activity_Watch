@@ -23,12 +23,12 @@ BEGIN
     BLOCK "040904b0"
     BEGIN
       VALUE "CompanyName", "ef tools"
-      VALUE "FileDescription", "Activity Tracker"
+      VALUE "FileDescription", "Ounce"
       VALUE "FileVersion", "{version}"
-      VALUE "InternalName", "activity-tracker"
+      VALUE "InternalName", "ounce"
       VALUE "LegalCopyright", "Enzo Freminet"
-      VALUE "OriginalFilename", "activity-tracker.exe"
-      VALUE "ProductName", "Activity Tracker"
+      VALUE "OriginalFilename", "ounce.exe"
+      VALUE "ProductName", "Ounce"
       VALUE "ProductVersion", "{version}"
     END
   END

@@ -1,10 +1,10 @@
-# Prompt: "Activity Tracker" page for the ef tools website
+# Prompt: "Ounce" page for the ef tools website
 
 Paste the whole block below into your site builder (Claude, Lovable, Framer AI, v0…) together with the images from `docs/press/`.
 
 ---
 
-Create a dedicated page for my software **Activity Tracker** on my personal website **ef tools** (by Enzo Freminet). The page must match the existing site exactly: dark background, **Manrope** typeface, a minimal, premium look inspired by Apple product pages. Generous whitespace, large tight headlines (weight 800, negative letter-spacing), grey secondary text (#a1a1a6), very dark grey cards (#1c1c1e) with large rounded corners (24 px) and no border. One accent colour only, blue #0a84ff, used sparingly. No loud gradients, no neon, no emoji in headings. All copy is in English.
+Create a dedicated page for my software **Ounce** on my personal website **ef tools** (by Enzo Freminet). The page must match the existing site exactly: dark background, **Manrope** typeface, a minimal, premium look inspired by Apple product pages. Generous whitespace, large tight headlines (weight 800, negative letter-spacing), grey secondary text (#a1a1a6), very dark grey cards (#1c1c1e) with large rounded corners (24 px) and no border. One accent colour only, blue #0a84ff, used sparingly. No loud gradients, no neon, no emoji in headings. All copy is in English.
 
 ## Animations
 Smooth and understated, triggered on scroll:
@@ -18,7 +18,7 @@ Respect `prefers-reduced-motion` (no animation at all). Fully responsive, flawle
 ## Provided images
 - `01-hero.png`: main visual (16:9)
 - `02-features.png`: feature grid
-- `03-light-private.png`: key figures
+- `03-featherweight.png`: key figures
 - `capture-today.png`, `capture-week.png`, `capture-wrapped.png`, `capture-year.png`, `capture-apps.png`: interface screenshots (2880×1800)
 - `wrapped-share.png`: the Wrapped share card (4:5 portrait)
 - `og-1200x630.png`: use as the page's Open Graph / Twitter image
@@ -28,10 +28,10 @@ Show the screenshots inside a sober window frame (dark grey title bar with three
 ## Structure and copy
 
 **1. Hero**
-- Eyebrow: "Activity Tracker · for Windows 10/11"
-- Headline: "Your screen time, without the noise."
-- Subheadline: "A light, private activity tracker. Built for 3D artists, useful to everyone."
-- Primary white button: "Download for free" → `https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/activity-tracker.exe`
+- Eyebrow: "Ounce · for Windows 10/11"
+- Headline: "Screen time that weighs an ounce."
+- Subheadline: "A 2 MB screen-time tracker for Windows. Featherweight, private, built for 3D artists."
+- Primary white button: "Download for free" → `https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/ounce.exe`
 - Secondary link: "View source code" → `https://github.com/bruce333-creator/Activity_Watch`
 - Small grey line under the button: "Free · ~2 MB · Windows 10 and 11"
 - Then `capture-today.png`, large, in the window frame.
@@ -46,18 +46,19 @@ Show the screenshots inside a sober window frame (dark grey title bar with three
 
 **3. Wrapped section**: text on the left, `wrapped-share.png` on the right, slightly tilted (rotate -3°), straightening on hover.
 - Headline: "Your week, told."
-- Text: "Every Monday, Activity Tracker prepares your Wrapped: how long you spent on your PC, your #1 app, your busiest day and the profile that fits you."
+- Text: "Every Monday, Ounce prepares your Wrapped: how long you spent on your PC, your #1 app, your busiest day and the profile that fits you."
 
 **4. Gallery**: a horizontal carousel or "Today / Week / Year / Apps" tabs that switch the screenshot with a crossfade.
 
-**5. "Light. Private. Always up to date."**: 4 key figures that count up when they appear:
-- "~2 MB": a single .exe, no installer, no dependencies
-- "0": telemetry. Your data stays on your PC
+**5. "Weighs nothing. Misses nothing."**: the core message of the page. 4 key figures that count up when they appear, very large:
+- "~2 MB": one .exe, no installer, no dependencies
+- "~16 MB": of memory while running
 - "2 s": a quick look every 2 seconds, then back to sleep
-- "1 click": to install every new version
+- "0": telemetry. Your data stays on your PC
+Under them, small grey text: "Measured on Windows by the build's selftest."
 
 **6. Get started in 3 steps** (numbers 1-2-3 in circles):
-1. Download `activity-tracker.exe` and put it in a folder of your own, e.g. Documents\ActivityTracker.
+1. Download `ounce.exe` and put it in a folder of your own, e.g. Documents\Ounce.
 2. Double-click it: the icon appears next to the Windows clock.
 3. Right-click the icon → "Run at Windows startup". That's it.
 
@@ -71,10 +72,10 @@ Show the screenshots inside a sober window frame (dark grey title bar with three
 
 **8. Final call to action**: a large centred headline "Ready to see where your time goes?" + "Download for free" button (same link).
 
-**9. Footer**, small grey text: "Activity Tracker by Enzo Freminet · ef tools · MIT license"
+**9. Footer**, small grey text: "Ounce by Enzo Freminet · ef tools · MIT license"
 
 ## Technical
-- Meta tags: title "Activity Tracker: your screen time on Windows | ef tools", a description of at most 155 characters, Open Graph with `og-1200x630.png`.
+- Meta tags: title "Ounce: screen time that weighs an ounce | ef tools", a description of at most 155 characters, Open Graph with `og-1200x630.png`.
 - No heavy animation library: IntersectionObserver + CSS are enough.
 - Accessible contrast, visible keyboard focus.
-- Leave the rest of the site unchanged: only add this page and an "Activity Tracker" link in the menu, next to my other tools.
+- Leave the rest of the site unchanged: only add this page and an "Ounce" link in the menu, next to my other tools.

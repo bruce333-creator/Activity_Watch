@@ -496,6 +496,28 @@ fn set_autostart(exe: &Path, enable: bool) -> Result<(), String> {
 /// Data folder (database, Edge window profile; config and log for the Store build).
 static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
 
+/// Versions up to 0.5 ("Activity Tracker") kept their data in %APPDATA%\ActivityTracker.
+/// Moves it to the new folder once; keeps using the old one if it cannot be moved.
+fn migrate_data_dir(new: PathBuf) -> PathBuf {
+    let old = new.with_file_name("ActivityTracker");
+    if new.exists() || !old.exists() {
+        return new;
+    }
+    match std::fs::rename(&old, &new) {
+        Ok(()) => {
+            dlog!("data moved from {} to {}", old.display(), new.display());
+            new
+        }
+        Err(e) => {
+            dlog!(
+                "warning: cannot move {}: {e}; using it as is",
+                old.display()
+            );
+            old
+        }
+    }
+}
+
 /// Edge's location (preinstalled on Windows 10/11).
 fn edge_path() -> Option<PathBuf> {
     ["ProgramFiles(x86)", "ProgramFiles", "LOCALAPPDATA"]
@@ -635,7 +657,7 @@ fn set_tray_icon(hwnd: HWND, add: bool) {
         if paused {
             menu(lang).paused_tip
         } else {
-            "Activity Tracker"
+            "Ounce"
         },
     );
     unsafe {
@@ -868,7 +890,7 @@ fn create_tray_window() -> Option<HWND> {
         let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE(0),
             class,
-            w!("Activity Tracker"),
+            w!("Ounce"),
             WS_OVERLAPPED,
             0,
             0,
@@ -909,7 +931,7 @@ fn http_get(url: &str, accept: &str) -> Result<Vec<u8>, String> {
     let (host, path) = rest.find('/').map_or((rest, "/"), |i| rest.split_at(i));
     let fail = |what: &str| format!("{what}: {}", windows::core::Error::from_thread());
     unsafe {
-        let agent = HSTRING::from(format!("ActivityTracker/{}", update::CURRENT));
+        let agent = HSTRING::from(format!("Ounce/{}", update::CURRENT));
         let session = Net(WinHttpOpen(
             &agent,
             WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
@@ -1069,13 +1091,13 @@ fn install_update() {
 // ---------------------------------------------------------------- entry point
 
 const USAGE: &str =
-    "activity-tracker [--debug-log] [--selftest] [--install-autostart] [--uninstall-autostart]";
+    "ounce [--debug-log] [--selftest] [--install-autostart] [--uninstall-autostart]";
 // --updated is internal: passed by the old exe when it restarts the new one.
 
 pub fn main() -> i32 {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let has = |f: &str| args.iter().any(|a| a == f);
-    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("activity-tracker.exe"));
+    let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("ounce.exe"));
     let dir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
 
     // Every flag except --debug-log / --updated prints something.
@@ -1118,17 +1140,19 @@ pub fn main() -> i32 {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     }
     let packaged = is_packaged();
-    let data_dir = packaged
+    let mut data_dir = packaged
         .then(package_local_state)
         .flatten()
         .unwrap_or_else(|| {
             std::env::var_os("APPDATA")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| dir.clone())
-                .join("ActivityTracker")
+                .join("Ounce")
         });
-    let _ = std::fs::create_dir_all(&data_dir);
-    let _ = DATA_DIR.set(data_dir.clone());
+    if packaged {
+        let _ = std::fs::create_dir_all(&data_dir);
+        let _ = DATA_DIR.set(data_dir.clone());
+    }
     // The Store build cannot write next to its exe.
     let settings_dir = if packaged { &data_dir } else { &dir };
     let config_path = settings_dir.join("config.toml");
@@ -1138,10 +1162,10 @@ pub fn main() -> i32 {
         .map(|s| s.local_offset())
         .unwrap_or(0);
     if has("--debug-log") {
-        let _ = log::init(&settings_dir.join("activity-tracker.log"), offset);
+        let _ = log::init(&settings_dir.join("ounce.log"), offset);
     }
     dlog!(
-        "==== activity-tracker {} starting, exe {}",
+        "==== ounce {} starting, exe {}",
         env!("CARGO_PKG_VERSION"),
         exe.display()
     );
@@ -1173,6 +1197,11 @@ pub fn main() -> i32 {
         if !packaged && autostart_enabled() {
             let _ = set_autostart(&exe, true);
         }
+    }
+    if !packaged {
+        data_dir = migrate_data_dir(data_dir);
+        let _ = std::fs::create_dir_all(&data_dir);
+        let _ = DATA_DIR.set(data_dir.clone());
     }
     // Leftovers of an update.
     let _ = std::fs::remove_file(exe.with_extension("exe.old"));
@@ -1248,7 +1277,7 @@ pub fn main() -> i32 {
 /// Runs the real collector for 15 s against an in-memory database and reports its own cost.
 fn selftest(cfg: Config, lang: Lang, exe: &Path) -> i32 {
     println!(
-        "activity-tracker {} selftest: sampling for 15 s every {} s...",
+        "ounce {} selftest: sampling for 15 s every {} s...",
         env!("CARGO_PKG_VERSION"),
         cfg.poll_interval_secs
     );

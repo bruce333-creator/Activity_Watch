@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Activity Tracker</title>
+<title>Ounce</title>
 <link rel="icon" href="/favicon.ico">
 <style>
 /* Manrope (SIL Open Font License), embedded in the exe: works offline. */
@@ -244,7 +244,7 @@ footer a { color: var(--text-2); text-decoration: none; } footer a:hover { color
       <g class="lg-h"><path d="M32 33.9 L32 24.4" stroke="#1d0d6e" stroke-width="5.6" stroke-linecap="round"/><path d="M32 32 L32 22.5" stroke="#fff" stroke-width="5.6" stroke-linecap="round"/></g>
       <g class="lg-m"><path d="M32 33.9 L39.5 38.4" stroke="#1d0d6e" stroke-width="5.6" stroke-linecap="round"/><path d="M32 32 L39.5 36.5" stroke="#fff" stroke-width="5.6" stroke-linecap="round"/></g>
     </svg>
-    <b>Activity Tracker</b><small>by Enzo Freminet</small></a>
+    <b>Ounce</b><small>by Enzo Freminet</small></a>
   <nav id="nav"></nav>
   <div class="head-right" id="period"></div>
 </div></header>
@@ -279,7 +279,7 @@ const I18N = {
     edit: 'Personnaliser', editHint: "Le nom et le logo sont enregistrés sur ce PC et restent après une mise à jour. Donner le même nom à deux applis les regroupe.",
     pickLogo: 'Changer le logo…', resetLogo: "Remettre le logo d'origine", nameLabel: 'Nom affiché', resetName: key => `Remettre le nom d'origine (${key})`,
     cancel: 'Annuler', save: 'Enregistrer', badImage: "Cette image n'a pas pu être lue.", saveError: "L'enregistrement a échoué : ",
-    update: v => `<b>Activity Tracker ${v}</b> est disponible.`, updateBtn: 'Installer', updating: "Installation… L'app redémarre toute seule.", updateFail: "La mise à jour a échoué. Réessaie plus tard.",
+    update: v => `<b>Ounce ${v}</b> est disponible.`, updateBtn: 'Installer', updating: "Installation… L'app redémarre toute seule.", updateFail: "La mise à jour a échoué. Réessaie plus tard.",
     appsTitle: 'Tes applis', appsLead: 'Renomme une appli ou change son logo. Tout est enregistré sur ce PC.', original: o => `d'origine : ${o}`,
     customLogo: 'logo personnalisé', noApps: 'Aucune appli enregistrée pour l’instant.',
     titles: { today: "Aujourd'hui", week: 'Cette semaine', month: 'Ce mois-ci' },
@@ -328,7 +328,7 @@ const I18N = {
     nav: { today: 'Today', week: 'Week', month: 'Month', year: 'Year', wrapped: 'Wrapped', apps: 'Apps' },
     edit: 'Customize', editHint: 'The name and logo are saved on this PC and survive updates. Giving two apps the same name merges them.',
     pickLogo: 'Change logo…', resetLogo: 'Restore the original logo', nameLabel: 'Display name', resetName: key => `Restore the original name (${key})`,
-    update: v => `<b>Activity Tracker ${v}</b> is available.`, updateBtn: 'Install', updating: 'Installing… The app restarts by itself.', updateFail: 'The update failed. Try again later.',
+    update: v => `<b>Ounce ${v}</b> is available.`, updateBtn: 'Install', updating: 'Installing… The app restarts by itself.', updateFail: 'The update failed. Try again later.',
     cancel: 'Cancel', save: 'Save', badImage: 'This image could not be read.', saveError: 'Saving failed: ',
     appsTitle: 'Your apps', appsLead: 'Rename an app or change its logo. Everything is saved on this PC.', original: o => `originally: ${o}`,
     customLogo: 'custom logo', noApps: 'No app recorded yet.',
@@ -643,7 +643,7 @@ async function shareImage() {
   g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
   g.fillStyle = '#1c1c1e'; g.beginPath(); g.roundRect(40, 40, W - 80, H - 80, 56); g.fill();
   const logo = await load('/logo.png'); if (logo) g.drawImage(logo, 80, 80, 64, 64);
-  g.fillStyle = '#f5f5f7'; g.font = `700 32px ${F}`; g.fillText('Activity Tracker', 164, 122);
+  g.fillStyle = '#f5f5f7'; g.font = `700 32px ${F}`; g.fillText('Ounce', 164, 122);
   g.fillStyle = '#a1a1a6'; g.font = `500 30px ${F}`;
   g.fillText(`${T.yourWrapped} · ${day(d.from, { day: 'numeric', month: 'short' })} – ${day(d.to, { day: 'numeric', month: 'short' })}`, 80, 250);
   const [ptitle, ptext] = personaText(d.persona);
@@ -660,7 +660,7 @@ async function shareImage() {
     g.fillStyle = '#f5f5f7'; g.font = `600 40px ${F}`; g.fillText(a.name, 166, y + 44);
     g.fillStyle = '#a1a1a6'; g.textAlign = 'right'; g.fillText(fmt(a.seconds), W - 80, y + 44); g.textAlign = 'left';
   }
-  g.fillStyle = '#6e6e73'; g.font = `500 26px ${F}`; g.fillText('ef tools · Activity Tracker', 80, H - 84);
+  g.fillStyle = '#6e6e73'; g.font = `500 26px ${F}`; g.fillText('ef tools · Ounce', 80, H - 84);
   const a = document.createElement('a'); a.download = `wrapped-${d.from}.png`; a.href = c.toDataURL('image/png'); a.click();
 }
 

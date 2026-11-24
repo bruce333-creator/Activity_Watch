@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 
-pub const DEFAULT_CONFIG: &str = r#"# Activity Tracker configuration (edit, then restart the tracker)
+pub const DEFAULT_CONFIG: &str = r#"# Ounce configuration (edit, then restart the tracker)
 
 # Seconds between two samples. 2 is a good trade-off; higher = even less CPU.
 poll_interval_secs = 2

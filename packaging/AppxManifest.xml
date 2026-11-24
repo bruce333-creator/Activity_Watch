@@ -12,7 +12,7 @@
   <Identity Name="{{NAME}}" Publisher="{{PUBLISHER}}" Version="{{VERSION}}" ProcessorArchitecture="x64"/>
 
   <Properties>
-    <DisplayName>Activity Tracker</DisplayName>
+    <DisplayName>Ounce</DisplayName>
     <PublisherDisplayName>{{PUBLISHER_NAME}}</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -26,20 +26,20 @@
   </Resources>
 
   <Applications>
-    <Application Id="ActivityTracker" Executable="activity-tracker.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="Activity Tracker" Description="Screen-time tracker for Windows"
+    <Application Id="ActivityTracker" Executable="ounce.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Ounce" Description="Screen time that weighs an ounce"
         BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png"/>
       </uap:VisualElements>
       <Extensions>
         <!-- "Run at Windows startup" in the tray menu toggles this task. -->
-        <desktop:Extension Category="windows.startupTask" Executable="activity-tracker.exe" EntryPoint="Windows.FullTrustApplication">
-          <desktop:StartupTask TaskId="ActivityTracker" Enabled="false" DisplayName="Activity Tracker"/>
+        <desktop:Extension Category="windows.startupTask" Executable="ounce.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="ActivityTracker" Enabled="false" DisplayName="Ounce"/>
         </desktop:Extension>
-        <!-- Makes activity-tracker.exe (and its selftest flag) runnable from a command prompt. -->
-        <uap3:Extension Category="windows.appExecutionAlias" Executable="activity-tracker.exe" EntryPoint="Windows.FullTrustApplication">
+        <!-- Makes ounce.exe (and its selftest flag) runnable from a command prompt. -->
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="ounce.exe" EntryPoint="Windows.FullTrustApplication">
           <uap3:AppExecutionAlias>
-            <desktop:ExecutionAlias Alias="activity-tracker.exe"/>
+            <desktop:ExecutionAlias Alias="ounce.exe"/>
           </uap3:AppExecutionAlias>
         </uap3:Extension>
       </Extensions>

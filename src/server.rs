@@ -262,11 +262,9 @@ pub fn serve(db_path: &Path, mut cfg: Config, lang: Lang, icon: Option<IconFn>) 
                 req.respond(Response::from_string(body).with_header(header("application/json")))
             }
             "/api/export.csv" => {
-                let disposition = Header::from_bytes(
-                    "Content-Disposition",
-                    "attachment; filename=\"activity-tracker.csv\"",
-                )
-                .unwrap();
+                let disposition =
+                    Header::from_bytes("Content-Disposition", "attachment; filename=\"ounce.csv\"")
+                        .unwrap();
                 req.respond(
                     Response::from_string(export_csv(&store, &cfg))
                         .with_header(header("text/csv; charset=utf-8"))

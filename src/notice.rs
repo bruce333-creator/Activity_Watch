@@ -103,18 +103,18 @@ impl Notice {
             ),
             (Notice::Update { version }, Fr) => (
                 format!("Mise à jour {version} disponible"),
-                "Cliquez ici pour l'installer. Activity Tracker redémarrera tout seul, sans perdre vos données.".into(),
+                "Cliquez ici pour l'installer. Ounce redémarrera tout seul, sans perdre vos données.".into(),
             ),
             (Notice::Update { version }, En) => (
                 format!("Update {version} available"),
-                "Click here to install it. Activity Tracker restarts by itself, your data is kept.".into(),
+                "Click here to install it. Ounce restarts by itself, your data is kept.".into(),
             ),
             (Notice::Updated { version }, Fr) => (
-                format!("Activity Tracker {version} installé"),
+                format!("Ounce {version} installé"),
                 "La mise à jour est terminée.".into(),
             ),
             (Notice::Updated { version }, En) => (
-                format!("Activity Tracker {version} installed"),
+                format!("Ounce {version} installed"),
                 "The update is complete.".into(),
             ),
             (Notice::UpdateFailed, Fr) => (
@@ -155,7 +155,7 @@ pub struct Menu {
 pub fn menu(lang: Lang) -> Menu {
     match lang {
         Lang::Fr => Menu {
-            open: "Ouvrir Activity Tracker",
+            open: "Ouvrir Ounce",
             wrapped: "Wrapped de la semaine",
             pause: "Mettre en pause",
             resume: "Reprendre le suivi",
@@ -163,10 +163,10 @@ pub fn menu(lang: Lang) -> Menu {
             quit: "Quitter",
             settings: "Modifier les réglages…",
             update: "Installer la mise à jour {}",
-            paused_tip: "Activity Tracker (en pause)",
+            paused_tip: "Ounce (en pause)",
         },
         Lang::En => Menu {
-            open: "Open Activity Tracker",
+            open: "Open Ounce",
             wrapped: "Weekly Wrapped",
             pause: "Pause tracking",
             resume: "Resume tracking",
@@ -174,7 +174,7 @@ pub fn menu(lang: Lang) -> Menu {
             quit: "Quit",
             settings: "Edit settings…",
             update: "Install update {}",
-            paused_tip: "Activity Tracker (paused)",
+            paused_tip: "Ounce (paused)",
         },
     }
 }

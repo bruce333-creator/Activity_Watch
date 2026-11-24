@@ -48,41 +48,41 @@ jobs:
         shell: pwsh
         run: |
           # The release exe is a GUI-subsystem app: redirect its output to files, then print them.
-          $p = Start-Process -FilePath target\release\activity-tracker.exe -ArgumentList '--selftest' `
+          $p = Start-Process -FilePath target\release\ounce.exe -ArgumentList '--selftest' `
                  -Wait -PassThru -NoNewWindow `
                  -RedirectStandardOutput selftest.txt -RedirectStandardError selftest-err.txt
           Get-Content selftest.txt
           Get-Content selftest-err.txt
-          "exe size: {0:N0} bytes" -f (Get-Item target\release\activity-tracker.exe).Length
+          "exe size: {0:N0} bytes" -f (Get-Item target\release\ounce.exe).Length
           if ($p.ExitCode -ne 0) { Write-Error "selftest exit code $($p.ExitCode)"; exit 1 }
 
       - uses: actions/upload-artifact@v4
         with:
-          name: activity-tracker
-          path: target/release/activity-tracker.exe
+          name: ounce
+          path: target/release/ounce.exe
 
-      # Microsoft Store package. Upload activity-tracker.msix in Partner Center: the Store signs it.
+      # Microsoft Store package. Upload ounce.msix in Partner Center: the Store signs it.
       # Set the repository variables MSIX_IDENTITY_NAME, MSIX_PUBLISHER and
       # MSIX_PUBLISHER_DISPLAY_NAME to the values of Partner Center > Product identity.
       - name: Store package (MSIX) + install test
         shell: pwsh
         env:
-          MSIX_NAME: ${{ vars.MSIX_IDENTITY_NAME || 'EnzoFreminet.ActivityTracker' }}
+          MSIX_NAME: ${{ vars.MSIX_IDENTITY_NAME || 'EnzoFreminet.Ounce' }}
           MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER || 'CN=Enzo Freminet' }}
           MSIX_PUBLISHER_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME || 'Enzo Freminet' }}
         run: |
           $sdk = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.*\x64\makeappx.exe" | Sort-Object FullName | Select-Object -Last 1).DirectoryName
           "Windows SDK tools: $sdk"
           New-Item -ItemType Directory msix\Assets -Force | Out-Null
-          Copy-Item target\release\activity-tracker.exe msix\
+          Copy-Item target\release\ounce.exe msix\
           Copy-Item packaging\Assets\* msix\Assets\
           (Get-Content packaging\AppxManifest.xml -Raw).Replace('{{NAME}}', $env:MSIX_NAME).Replace('{{PUBLISHER}}', $env:MSIX_PUBLISHER).Replace('{{PUBLISHER_NAME}}', $env:MSIX_PUBLISHER_NAME).Replace('{{VERSION}}', "${{ steps.ver.outputs.version }}.0") |
             Set-Content msix\AppxManifest.xml -Encoding utf8
-          & "$sdk\makeappx.exe" pack /d msix /p activity-tracker.msix /o
+          & "$sdk\makeappx.exe" pack /d msix /p ounce.msix /o
           if ($LASTEXITCODE) { exit 1 }
 
           # Test: sign a copy with a throwaway certificate, install it, run the packaged selftest.
-          Copy-Item activity-tracker.msix test.msix
+          Copy-Item ounce.msix test.msix
           $cert = New-SelfSignedCertificate -Type Custom -Subject $env:MSIX_PUBLISHER -KeyUsage DigitalSignature `
                     -CertStoreLocation Cert:\CurrentUser\My -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
           & "$sdk\signtool.exe" sign /fd SHA256 /sha1 $cert.Thumbprint test.msix
@@ -90,7 +90,7 @@ jobs:
           Export-Certificate -Cert $cert -FilePath test.cer | Out-Null
           Import-Certificate -FilePath test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
           Add-AppxPackage test.msix
-          $p = Start-Process -FilePath "$env:LOCALAPPDATA\Microsoft\WindowsApps\activity-tracker.exe" -ArgumentList '--selftest' `
+          $p = Start-Process -FilePath "$env:LOCALAPPDATA\Microsoft\WindowsApps\ounce.exe" -ArgumentList '--selftest' `
                  -Wait -PassThru -NoNewWindow -RedirectStandardOutput msix-selftest.txt -RedirectStandardError msix-selftest-err.txt
           Get-Content msix-selftest.txt
           Get-Content msix-selftest-err.txt
@@ -99,8 +99,14 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: activity-tracker-store
-          path: activity-tracker.msix
+          name: ounce-store
+          path: ounce.msix
+
+      # Versions up to 0.5 look for activity-tracker.exe when they update: publish both names.
+      - name: Legacy update name
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release
+        shell: pwsh
+        run: Copy-Item target\release\ounce.exe target\release\activity-tracker.exe
 
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || inputs.release
@@ -109,12 +115,15 @@ jobs:
           # On a manual run the tag is created on this commit.
           tag_name: v${{ steps.ver.outputs.version }}
           target_commitish: ${{ github.sha }}
-          name: Activity Tracker ${{ steps.ver.outputs.version }}
-          files: target/release/activity-tracker.exe
+          name: Ounce ${{ steps.ver.outputs.version }}
+          files: |
+            target/release/ounce.exe
+            target/release/activity-tracker.exe
           generate_release_notes: true
           body: |
-            **Download `activity-tracker.exe` below**, put it in a folder of your own and double-click it.
+            **Download `ounce.exe` below**, put it in a folder of your own and double-click it.
+            (`activity-tracker.exe` is the same file, for the automatic update of versions 0.5 and older.)
             Already installed? Click the update notification, or right-click the tray icon → *Install update*.
 
-            Windows 10/11 · single exe, no installer · your data stays on your PC.
+            Screen time that weighs an ounce. Windows 10/11 · one ~2 MB exe, no installer · your data stays on your PC.
             If Windows SmartScreen warns on first launch: *More info* → *Run anyway*.

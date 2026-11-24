@@ -1,27 +1,37 @@
-# Activity Tracker
+# Ounce
 
 *by Enzo Freminet · ef tools*
 
-![Activity Tracker](docs/press/01-hero.png)
+![Ounce](docs/press/01-hero.png)
 
-A screen-time tracker for Windows 10/11, written in Rust. It measures **how much time you spend on your PC** and in each app, with a wellbeing dashboard, a weekly **Wrapped** and time per project for 3D artists (Maya, Blender, Houdini…).
+**Screen time that weighs an ounce.**
 
-- One ~2 MB `.exe`, no installer, no dependencies (C runtime statically linked).
-- No keyboard/mouse hook, no GPU, no telemetry: the dashboard only listens on `127.0.0.1`. The only outgoing connection is the daily update check (can be turned off).
-- Samples every 2 s from a sleeping thread, "below normal" priority + EcoQoS (Windows 11).
-- Your data stays with you: `%APPDATA%\ActivityTracker\activity.db` (SQLite).
+Ounce shows how much time you really spend on your PC, and in which apps: a wellbeing dashboard, a weekly **Wrapped** and time per project for 3D artists (Maya, Blender, Houdini…). And it is built to weigh nothing.
+
+## Featherweight
+
+| | |
+|---|---|
+| **~2 MB** | One `.exe`. No installer, no runtime, no framework, no dependencies. |
+| **~16 MB of memory** | Working set measured on Windows by the build's selftest. |
+| **~0.2 % of one CPU core** | Measured over the selftest's 16 s, *including* startup (database, icons, update check). Running, it is lower. |
+| **0 when idle** | Between two glances the thread sleeps; the tray and the dashboard wait for Windows events and use no CPU at all. |
+| **1 glance every 2 s** | Two questions to Windows (foreground window, last input), a few microseconds, at "below normal" priority with EcoQoS on Windows 11. |
+| **No hooks** | No keyboard or mouse hook, no screen capture, no GPU, no background browser. The window is opened only when you ask, and closing it frees it entirely. |
+
+Measurements come from the Windows machine that builds each release (see the *Selftest* step of the Actions run); check yours in Task Manager. No telemetry: the dashboard only listens on `127.0.0.1`, and the only outgoing request is the daily update check (can be turned off). Your data stays with you: `%APPDATA%\Ounce\activity.db` (SQLite).
 
 ## Download
 
-**[Download the latest version](https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/activity-tracker.exe)** (or see [all releases](https://github.com/bruce333-creator/Activity_Watch/releases)).
+**[Download the latest version](https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/ounce.exe)** (or see [all releases](https://github.com/bruce333-creator/Activity_Watch/releases)).
 
-Put the exe in a folder of your own, e.g. `C:\Tools\ActivityTracker\` (a `config.toml` is created next to it on first launch), then double-click it.
+Put the exe in a folder of your own, e.g. `C:\Tools\Ounce\` (a `config.toml` is created next to it on first launch), then double-click it.
 
 > The exe is not signed: on first launch Windows SmartScreen may say "Windows protected your PC". Click **More info** → **Run anyway**. See [SmartScreen and antivirus](#smartscreen-and-antivirus).
 
 ## Updating
 
-**Automatic** (from 0.5 on): once a day, Activity Tracker checks GitHub for a newer version. If there is one:
+**Automatic** (from 0.5 on): once a day, Ounce checks GitHub for a newer version. If there is one:
 
 - an "Update X available" notification appears: **click it** to install;
 - or right-click the tray icon → **Install update X**;
@@ -29,20 +39,22 @@ Put the exe in a folder of your own, e.g. `C:\Tools\ActivityTracker\` (a `config
 
 The app downloads the new exe, swaps it with the old one and restarts by itself (a few seconds). Nothing is installed without your click. Your data, settings, names and logos are kept. To turn the check off: `check_updates = false`.
 
+**Coming from Activity Tracker** (the former name, 0.5 and earlier): the update installs Ounce in place and moves your data from `%APPDATA%\ActivityTracker` to `%APPDATA%\Ounce` on first start. Nothing to do.
+
 **By hand** (0.4 and earlier, or if the exe sits in a protected folder such as `C:\Program Files`):
 
 1. Right-click the tray icon → **Quit**. This saves the current session.
-2. Replace the old `activity-tracker.exe` with the new one, **in the same folder** and with the same name.
+2. Replace the old `ounce.exe` with the new one, **in the same folder** and with the same name.
 3. Double-click the new exe.
 
-Your data (history, custom names and logos) lives in `%APPDATA%\ActivityTracker\` and is never touched by an update. Autostart keeps working since the exe path does not change. The installed version is shown at the bottom of the window and in the exe's Properties → Details.
+Your data (history, custom names and logos) lives in `%APPDATA%\Ounce\` and is never touched by an update. Autostart keeps working since the exe path does not change. The installed version is shown at the bottom of the window and in the exe's Properties → Details.
 
 ## Usage
 
-Double-click `activity-tracker.exe`. The logo (white clock on black) appears in the notification area; it may be hidden under the ^ arrow. Drag it onto the taskbar to keep it visible.
+Double-click `ounce.exe`. The logo (white clock on black) appears in the notification area; it may be hidden under the ^ arrow. Drag it onto the taskbar to keep it visible.
 
-- **Left click**: opens Activity Tracker in its own window.
-- **Right click**: *Open Activity Tracker*, *Weekly Wrapped*, *Pause / Resume tracking* (the icon turns grey), *Run at Windows startup* (checkbox), *Edit settings…* (opens `config.toml` in Notepad), *Quit*.
+- **Left click**: opens Ounce in its own window.
+- **Right click**: *Open Ounce*, *Weekly Wrapped*, *Pause / Resume tracking* (the icon turns grey), *Run at Windows startup* (checkbox), *Edit settings…* (opens `config.toml` in Notepad), *Quit*.
 
 Everything is in English. A French translation is available with `language = "fr"`.
 
@@ -75,7 +87,7 @@ The **✎** button when hovering an app, or the **Apps** tab (every app seen so 
 
 To go back, use "Restore the original name" and "Restore the original logo". Giving two apps the same name merges them (e.g. Chrome and Edge as "Web").
 
-Everything is saved in the database (`%APPDATA%\ActivityTracker\activity.db`): it is permanent, including after an update or a restart.
+Everything is saved in the database (`%APPDATA%\Ounce\activity.db`): it is permanent, including after an update or a restart.
 
 ### Notifications
 
@@ -145,13 +157,13 @@ break_reminder_minutes = 75
 Easiest: right-click the tray icon → **Run at Windows startup**. Or, from a command prompt in the exe's folder:
 
 ```
-activity-tracker.exe --install-autostart
+ounce.exe --install-autostart
 ```
 
 This adds an entry under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (your account only, no admin rights needed) pointing to the **current** location of the exe. If you move the exe, run the command again. To remove it:
 
 ```
-activity-tracker.exe --uninstall-autostart
+ounce.exe --uninstall-autostart
 ```
 
 ## Troubleshooting
@@ -159,15 +171,15 @@ activity-tracker.exe --uninstall-autostart
 ### `--debug-log`
 
 ```
-activity-tracker.exe --debug-log
+ounce.exe --debug-log
 ```
 
-Writes `activity-tracker.log` next to the exe: startup and configuration, every state change (session start/end with the app name, pause, autostart), update checks, errors, and the memory used (working set) every minute. To use it at startup, run `--install-autostart` once, then edit the `ActivityTracker` value in `regedit` to add ` --debug-log` after the path.
+Writes `ounce.log` next to the exe: startup and configuration, every state change (session start/end with the app name, pause, autostart), update checks, errors, and the memory used (working set) every minute. To use it at startup, run `--install-autostart` once, then edit the `ActivityTracker` value in `regedit` to add ` --debug-log` after the path.
 
 ### `--selftest`
 
 ```
-activity-tracker.exe --selftest
+ounce.exe --selftest
 ```
 
 Runs the collector for 15 seconds against an in-memory database (your data is not touched), then prints:
@@ -181,8 +193,8 @@ Runs the collector for 15 seconds against an in-memory database (your data is no
 
 ### Reporting a problem
 
-1. The full output of `activity-tracker.exe --selftest` (copy-paste from the console).
-2. `activity-tracker.log` after reproducing the problem with `--debug-log`.
+1. The full output of `ounce.exe --selftest` (copy-paste from the console).
+2. `ounce.log` after reproducing the problem with `--debug-log`.
 3. Your `config.toml`.
 4. A description: what you were doing, what you expected, what the dashboard shows. If an app shows up under the wrong name, give the exact name of its process (Task Manager → Details).
 
@@ -205,10 +217,10 @@ GitHub Actions builds the exe, tests it and creates the **Release** with the exe
 Rules:
 - the tag must be exactly `v` + the `Cargo.toml` version, otherwise the build refuses to publish (an app that always thinks it is outdated would update in a loop);
 - the repository must stay **public**: the apps query GitHub without an account;
-- the attached exe must keep the name `activity-tracker.exe`;
+- the attached exe must keep the name `ounce.exe`;
 - a Release marked "pre-release" or draft is not offered: handy to test before shipping.
 
-**Permanent download link** (always the latest version, for a website): `https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/activity-tracker.exe`.
+**Permanent download link** (always the latest version, for a website): `https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/ounce.exe`.
 
 ### SmartScreen and antivirus
 
@@ -223,12 +235,12 @@ A self-signed certificate is useless: Windows does not trust it.
 
 ### Microsoft Store
 
-Every build produces `activity-tracker.msix` (artifact **activity-tracker-store** of the GitHub Actions run). CI installs it on Windows and runs its selftest, so the package is known to install and start.
+Every build produces `ounce.msix` (artifact **ounce-store** of the GitHub Actions run). CI installs it on Windows and runs its selftest, so the package is known to install and start.
 
-1. Create a developer account at https://storedeveloper.microsoft.com (free for individuals) and open **Partner Center → Apps and games → New product → MSIX or PWA app**. Reserve the name "Activity Tracker" (or another if taken).
+1. Create a developer account at https://storedeveloper.microsoft.com (free for individuals) and open **Partner Center → Apps and games → New product → MSIX or PWA app**. Reserve the name "Ounce" (or another if taken).
 2. **Product identity** (Product management): copy *Package/Identity/Name*, *Package/Identity/Publisher* and *Package/Properties/PublisherDisplayName* into the repository variables (GitHub → Settings → Secrets and variables → Actions → **Variables**): `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER`, `MSIX_PUBLISHER_DISPLAY_NAME`.
-3. Run the workflow again (Actions → build → Run workflow) and download the **activity-tracker-store** artifact.
-4. Submission: upload `activity-tracker.msix` in **Packages**, fill **Store listing** with `docs/store-listing.md` and the images of `docs/press/`, **Properties**: category *Productivity*, privacy policy URL `https://github.com/bruce333-creator/Activity_Watch#privacy`. Pricing: free. In the *Submission options*, the restricted capability `runFullTrust` needs a sentence: "Desktop app: reads the foreground window to measure screen time; shows a tray icon."
+3. Run the workflow again (Actions → build → Run workflow) and download the **ounce-store** artifact.
+4. Submission: upload `ounce.msix` in **Packages**, fill **Store listing** with `docs/store-listing.md` and the images of `docs/press/`, **Properties**: category *Productivity*, privacy policy URL `https://github.com/bruce333-creator/Activity_Watch#privacy`. Pricing: free. In the *Submission options*, the restricted capability `runFullTrust` needs a sentence: "Desktop app: reads the foreground window to measure screen time; shows a tray icon."
 5. Certification usually takes a few days. Each new version: bump `Cargo.toml`, run the workflow, upload the new `.msix` in a new submission.
 
 The Store version behaves like the exe, except:
@@ -238,7 +250,7 @@ The Store version behaves like the exe, except:
 
 ## Privacy
 
-Activity Tracker does not collect, send or share any personal data. Everything it records (which app is in the foreground and for how long, and the file name of known project files found in window titles) is stored only on your computer, in a local database you can delete at any time. The dashboard is served on `127.0.0.1` and cannot be reached from other computers. The only network request is a once-a-day check of this project's latest release on `api.github.com` (an anonymous request with no personal data), which can be turned off with `check_updates = false`; the Microsoft Store version makes none.
+Ounce does not collect, send or share any personal data. Everything it records (which app is in the foreground and for how long, and the file name of known project files found in window titles) is stored only on your computer, in a local database you can delete at any time. The dashboard is served on `127.0.0.1` and cannot be reached from other computers. The only network request is a once-a-day check of this project's latest release on `api.github.com` (an anonymous request with no personal data), which can be turned off with `check_updates = false`; the Microsoft Store version makes none.
 
 ## License
 
@@ -255,7 +267,7 @@ cargo test
 cargo build --release
 ```
 
-The result is `target\release\activity-tracker.exe`. Win32 code lives only in `src/win.rs`; all the logic (sessions, idle, SQLite, statistics, wellbeing, Wrapped, JSON, update parsing) is platform independent and tested on Linux as on Windows.
+The result is `target\release\ounce.exe`. Win32 code lives only in `src/win.rs`; all the logic (sessions, idle, SQLite, statistics, wellbeing, Wrapped, JSON, update parsing) is platform independent and tested on Linux as on Windows.
 
 | File | Role |
 |---|---|

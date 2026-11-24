@@ -38,7 +38,7 @@ fn main() {
         return;
     }
     eprintln!(
-        "activity-tracker tracks on Windows only (use `cargo test`, or --serve <db> to preview the dashboard)."
+        "ounce tracks on Windows only (use `cargo test`, or --serve <db> to preview the dashboard)."
     );
     std::process::exit(1);
 }
