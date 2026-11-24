@@ -35,7 +35,7 @@ Coming from an older version kept in a folder of your own? Launch it once: it mo
 
 ## Updating
 
-**Automatic** (from 0.5 on): once a day, Ounce checks GitHub for a newer version. If there is one:
+**Automatic** (from 0.5 on): a minute after start, then every 6 hours (once a day up to 0.8.0), Ounce checks GitHub for a newer version. *Settings → Updates → Check now* checks right away. If there is one:
 
 - an "Update X available" notification appears: **click it** to install;
 - or right-click the tray icon → **Install update X**;
@@ -105,7 +105,7 @@ The choices are written to `config.toml` and Ounce restarts by itself to apply t
 
 ### Themes and widget style
 
-Click **Appearance** at the bottom of the window (or pick a theme at first start):
+Open the **Settings** tab (or pick a theme at first start). It also holds the language, daily goal, break reminder, notifications, start with Windows, away delay, grouped versions, render time, updates (*Check now*) and the CSV export. Theme and widget apply at once; the rest is saved to `config.toml` and Ounce restarts by itself. The themes:
 
 - **Dark** (default): black, violet accent;
 - **Light**: Apple-style light grey and white;
@@ -184,7 +184,7 @@ Created next to the exe on first launch. Edit it, then restart the tracker (Quit
 | `streak_minutes` | `30` | Minutes in those apps for a day to count in the streak. |
 | `ignored_apps` | `["lockapp.exe"]` | Apps never recorded. |
 | `web_port` | `8765` | Dashboard port (always on `127.0.0.1`). |
-| `check_updates` | `true` | Checks once a day for a newer version (one request to `api.github.com`, nothing else is sent). |
+| `check_updates` | `true` | Checks every 6 hours for a newer version (one request to `api.github.com`, nothing else is sent). |
 | `[app_limits]` | empty | Daily limit in minutes per app (display name), e.g. `"Discord" = 60`. |
 | `[friendly_names]` | built-in list | Display name per process. **Two processes with the same name are merged.** Your entries add to the built-in list (Maya, Blender, Photoshop, Premiere Pro, After Effects, Houdini, ZBrush, Nuke, Substance Painter, Chrome…). |
 

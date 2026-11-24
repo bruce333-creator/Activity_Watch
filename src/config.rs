@@ -46,7 +46,7 @@ ignored_apps = ["lockapp.exe"]
 # Local dashboard: http://127.0.0.1:<web_port>
 web_port = 8765
 
-# Look for a new version once a day (GitHub Releases). Nothing is installed without your click.
+# Look for a new version every 6 hours (GitHub Releases). Nothing is installed without your click.
 check_updates = true
 
 # Daily limits per app, in minutes (display names). A notification is shown when reached.

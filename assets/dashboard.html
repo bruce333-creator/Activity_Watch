@@ -339,6 +339,10 @@ dialog.wide { width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 32
 .focuscard .v { font-size: 38px; font-weight: 700; letter-spacing: -.04em; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
 .focus-btns { display: flex; gap: 8px; }
 .sub.render { color: var(--text-2); }
+.savebar { position: sticky; bottom: 16px; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-top: 14px; padding: 12px 14px 12px 20px; border-radius: var(--r-card); background: var(--card-2); border: 1px solid var(--accent);
+  box-shadow: 0 12px 40px rgba(0,0,0,.35); font-weight: 600; transform: translateY(20px); opacity: 0; pointer-events: none; transition: transform .35s var(--ease), opacity .25s; }
+.savebar.on { transform: none; opacity: 1; pointer-events: auto; }
 .steps { display: flex; gap: 6px; margin: 0 0 18px; } .steps i { width: 22px; height: 4px; border-radius: 4px; background: var(--card-2); transition: background .3s; } .steps i.on { background: var(--irid); }
 .seg { display: flex; background: var(--card-2); border-radius: 12px; padding: 3px; gap: 3px; flex: none; }
 .seg button { border: 0; background: none; color: var(--text-2); font: 600 13px var(--font); padding: 7px 11px; border-radius: 9px; cursor: pointer; transition: background .2s, color .2s; }
@@ -423,7 +427,7 @@ footer a { color: var(--text-2); text-decoration: none; } footer a:hover { color
   <div id="view"></div>
   <footer>
     <span id="foot-local"></span>
-    <span><a href="#" id="foot-look"></a> · <a href="/api/export.csv" download id="foot-export"></a> · <span id="foot-version"></span> · ef tools</span>
+    <span><a href="#settings" id="foot-look"></a> · <a href="/api/export.csv" download id="foot-export"></a> · <span id="foot-version"></span> · ef tools</span>
   </footer>
 </main>
 <div id="tip"></div>
@@ -440,12 +444,6 @@ footer a { color: var(--text-2); text-decoration: none; } footer a:hover { color
     <div class="err" id="ed-err"></div>
     <div class="actions"><button type="button" class="btn ghost" id="ed-cancel"></button><button type="submit" class="btn" id="ed-save"></button></div>
   </form>
-</dialog>
-
-<dialog id="prefs">
-  <h2 id="pf-title"></h2><p class="hint-line" id="pf-lead" style="margin:0"></p>
-  <div id="pf-body"></div>
-  <div class="actions" style="margin-top:22px;justify-content:flex-end"><button type="button" class="btn" id="pf-close"></button></div>
 </dialog>
 
 <dialog id="welcome">
@@ -465,7 +463,15 @@ footer a { color: var(--text-2); text-decoration: none; } footer a:hover { color
 // ---------------------------------------------------------------- i18n
 const I18N = {
   fr: {
-    nav: { today: "Aujourd'hui", week: 'Semaine', month: 'Mois', year: 'Année', wrapped: 'Wrapped', apps: 'Applis' },
+    nav: { today: "Aujourd'hui", week: 'Semaine', month: 'Mois', year: 'Année', wrapped: 'Wrapped', apps: 'Applis', settings: 'Réglages' },
+    settings: { title: 'Réglages', lead: "Le thème et le widget s'appliquent tout de suite ; le reste après « Enregistrer ».",
+      themeHint: 'Le look de la fenêtre (et du widget, s\'il suit le thème).', widgetHint: "Ton temps du jour, à côté de l'horloge.",
+      general: 'Général', generalHint: 'Langue, objectif et rappels.', tracking: 'Suivi', trackingHint: 'Ce qui compte comme du temps, et comment.',
+      idle: ['Absent après', "Sans clavier ni souris pendant ce temps, le temps s'arrête."],
+      updates: 'Mises à jour', version: 'Version', checkNow: 'Vérifier', checking: 'Vérification…', upToDate: 'Tu as la dernière version.',
+      checkHint: 'Vérifiée automatiquement toutes les 6 h.', available: v => `La version ${v} est disponible.`, checkFailed: e => `Impossible de vérifier (${e}).`,
+      store: 'Version Microsoft Store : les mises à jour arrivent par le Store.',
+      data: 'Données', redoSetup: "Refaire l'assistant", unsaved: 'Modifications non enregistrées. Ounce redémarre pour les appliquer.', save: 'Enregistrer', cancel: 'Annuler' },
     edit: 'Personnaliser', editHint: "Le nom et le logo sont enregistrés sur ce PC et restent après une mise à jour. Donner le même nom à deux applis les regroupe.",
     pickLogo: 'Changer le logo…', resetLogo: "Remettre le logo d'origine", nameLabel: 'Nom affiché', resetName: key => `Remettre le nom d'origine (${key})`,
     cancel: 'Annuler', save: 'Enregistrer', badImage: "Cette image n'a pas pu être lue.", saveError: "L'enregistrement a échoué : ",
@@ -505,7 +511,7 @@ const I18N = {
       widget: ['Afficher dans la barre des tâches', "Ton temps du jour, à côté de l'horloge."], autostart: ['Lancer avec Windows', 'Pour que chaque journée soit comptée.'],
       versions: ['Regrouper les versions', 'robot_v01.mb, robot_v02.mb… comptent comme un seul projet.'],
       render: ['Compter le temps de rendu', "Quand tu t'absentes et qu'un logiciel 3D calcule, compté à part."],
-      updates: ['Chercher les mises à jour', 'Une fois par jour, rien ne s\'installe sans ton clic.'],
+      updates: ['Chercher les mises à jour', 'Toutes les 6 h, rien ne s\'installe sans ton clic.'],
       theme: ['Thème', 'Le look de la fenêtre et du widget.'],
       back: 'Retour', next: 'Continuer', done: 'Commencer', applying: 'Application…' },
     prefs: { title: 'Apparence', lead: "Le thème de la fenêtre et du widget de la barre des tâches. Appliqué tout de suite.", close: 'OK', theme: 'Thème', widget: 'Widget de la barre des tâches',
@@ -541,7 +547,15 @@ const I18N = {
     locale: 'fr-FR', min: 'min', h: 'h', lessThanMin: '< 1 min',
   },
   en: {
-    nav: { today: 'Today', week: 'Week', month: 'Month', year: 'Year', wrapped: 'Wrapped', apps: 'Apps' },
+    nav: { today: 'Today', week: 'Week', month: 'Month', year: 'Year', wrapped: 'Wrapped', apps: 'Apps', settings: 'Settings' },
+    settings: { title: 'Settings', lead: 'Theme and widget apply right away; the rest after "Save".',
+      themeHint: 'The look of the window (and of the widget, if it follows the theme).', widgetHint: "Today's time next to the clock.",
+      general: 'General', generalHint: 'Language, goal and reminders.', tracking: 'Tracking', trackingHint: 'What counts as time, and how.',
+      idle: ['Away after', 'With no keyboard or mouse for this long, time stops counting.'],
+      updates: 'Updates', version: 'Version', checkNow: 'Check now', checking: 'Checking…', upToDate: 'You have the latest version.',
+      checkHint: 'Checked automatically every 6 hours.', available: v => `Version ${v} is available.`, checkFailed: e => `Could not check (${e}).`,
+      store: 'Microsoft Store version: updates come from the Store.',
+      data: 'Data', redoSetup: 'Run the setup again', unsaved: 'Unsaved changes. Ounce restarts to apply them.', save: 'Save', cancel: 'Cancel' },
     edit: 'Customize', editHint: 'The name and logo are saved on this PC and survive updates. Giving two apps the same name merges them.',
     pickLogo: 'Change logo…', resetLogo: 'Restore the original logo', nameLabel: 'Display name', resetName: key => `Restore the original name (${key})`,
     update: v => `<b>Ounce ${v}</b> is available.`, updateBtn: 'Install', updating: 'Installing… The app restarts by itself.', updateFail: 'The update failed. Try again later.',
@@ -581,7 +595,7 @@ const I18N = {
       widget: ['Show on the taskbar', "Today's time next to the clock."], autostart: ['Start with Windows', 'So every day gets counted.'],
       versions: ['Group versions', 'robot_v01.mb, robot_v02.mb… count as one project.'],
       render: ['Count render time', 'When you are away and a 3D app keeps computing, counted apart.'],
-      updates: ['Check for updates', 'Once a day, nothing installs without your click.'],
+      updates: ['Check for updates', 'Every 6 hours, nothing installs without your click.'],
       theme: ['Theme', 'The look of the window and of the widget.'],
       back: 'Back', next: 'Continue', done: 'Get started', applying: 'Applying…' },
     prefs: { title: 'Appearance', lead: 'Theme of the window and of the taskbar widget. Applied right away.', close: 'Done', theme: 'Theme', widget: 'Taskbar widget',
@@ -1381,7 +1395,7 @@ document.addEventListener('click', e => {
 });
 
 // ---------------------------------------------------------------- router
-const VIEWS = ['today', 'week', 'month', 'year', 'wrapped', 'apps'];
+const VIEWS = ['today', 'week', 'month', 'year', 'wrapped', 'apps', 'settings'];
 function movePill() {
   const on = $('nav a.on'), pill = $('nav .pill');
   if (on && pill) { pill.style.width = on.offsetWidth + 'px'; pill.style.transform = `translateX(${on.offsetLeft}px)`; }
@@ -1391,7 +1405,7 @@ function route(animate = true) {
   document.querySelectorAll('nav a').forEach(a => a.classList.toggle('on', a.hash === '#' + view));
   movePill();
   if (animate) $('nav a.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-  const p = { wrapped: showWrapped, year: showYear, apps: showApps }[view]?.(animate) ?? showRange(view, animate);
+  const p = { wrapped: showWrapped, year: showYear, apps: showApps, settings: showSettings }[view]?.(animate) ?? showRange(view, animate);
   p.catch(() => $('#view').innerHTML = `<div class="card empty">${T.offline}</div>`);
 }
 async function init() {
@@ -1400,7 +1414,7 @@ async function init() {
   document.documentElement.lang = CONF.lang || 'en';
   $('#nav').innerHTML = '<span class="pill"></span>' + VIEWS.map(v => `<a href="#${v}">${T.nav[v]}</a>`).join('');
   $('#foot-local').textContent = T.local;
-  $('#foot-look').textContent = T.prefs.title;
+  $('#foot-look').textContent = T.nav.settings;
   applyTheme(CONF.theme || 'default');
   $('#foot-export').textContent = T.export;
   $('#foot-version').textContent = 'v' + (CONF.version || '');
@@ -1412,30 +1426,98 @@ async function init() {
   route();
   // The nav pill must be measured with the final font.
   document.fonts.ready.then(movePill);
-  setInterval(() => { if (!document.hidden && !$('#editor').open && !$('#export').open && !$('#welcome').open && !$('#prefs').open && !['#wrapped', '#year', '#apps'].includes(location.hash)) route(false); }, 60000);
+  setInterval(() => { if (!document.hidden && !$('#editor').open && !$('#export').open && !$('#welcome').open && !['#wrapped', '#year', '#apps', '#settings'].includes(location.hash)) route(false); }, 60000);
 }
 init();
 
-// Appearance: theme and taskbar widget, saved as soon as they change.
-function drawPrefs() {
-  const P = T.prefs, seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-pk="${k}" data-v="${v}" class="${CONF[k] === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
-  $('#pf-title').textContent = P.title; $('#pf-lead').textContent = P.lead; $('#pf-close').textContent = P.close;
-  $('#pf-body').innerHTML = `<h2 style="margin-top:20px">${P.theme}</h2>${themeCards(CONF.theme, P.themes)}
-    <h2 style="margin-top:26px">${P.widget}</h2>
-    <label class="opt"><div><b>${T.setup.widget[0]}</b><span>${T.setup.widget[1]}</span></div><input type="checkbox" data-pk="widget" ${CONF.widget ? 'checked' : ''}><i class="switch"></i></label>
-    ${taskbarPreview(CONF.widget, CONF.theme, CONF.widget_line, CONF.widget_bar, CONF.widget_follow !== false)}
-    <label class="opt"><div><b>${P.follow[0]}</b><span>${P.follow[1]}</span></div><input type="checkbox" data-pk="widget_follow" ${CONF.widget_follow !== false ? 'checked' : ''}><i class="switch"></i></label>
-    <div class="opt static"><div><b>${P.line[0]}</b><span>${P.line[1]}</span></div>${seg('widget_line', [['app', P.lineApp], ['goal', P.lineGoal], ['none', P.lineNone]])}</div>
-    <label class="opt"><div><b>${P.bar[0]}</b><span>${P.bar[1]}</span></div><input type="checkbox" data-pk="widget_bar" ${CONF.widget_bar ? 'checked' : ''}><i class="switch"></i></label>`;
+// ---------------------------------------------------------------- settings
+// Theme and widget apply at once. Settings stored in config.toml are collected in PEND and
+// applied by "Save": Ounce writes them and restarts, then the page reloads.
+let PEND = {};
+const sv = (k, fallback) => k in PEND ? PEND[k] : (CONF[k] ?? fallback);
+async function showSettings(animate) {
+  try { Object.assign(CONF, await getJSON('/api/config')); } catch {}
+  $('#period').textContent = '';
+  render(settingsHTML(), animate);
 }
-$('#foot-look').onclick = e => { e.preventDefault(); drawPrefs(); $('#prefs').showModal(); };
-$('#pf-close').onclick = () => $('#prefs').close();
-$('#pf-body').addEventListener('click', e => {
-  const t = e.target.closest('[data-theme-pick]'), b = e.target.closest('.seg button');
-  if (t) { applyTheme(t.dataset.themePick); savePrefs({ theme: t.dataset.themePick }); route(false); drawPrefs(); }
-  if (b) { savePrefs({ [b.dataset.pk]: b.dataset.v }); drawPrefs(); }
+function settingsHTML() {
+  const S = T.settings, P = T.prefs, W = T.setup;
+  const seg = (k, opts, attr = 'data-sk', cur = sv(k)) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" ${attr}="${k}" data-v="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  const sw = (k, [title, hint], attr = 'data-sk', cur = sv(k)) => `<label class="opt"><div><b>${title}</b><span>${hint}</span></div><input type="checkbox" ${attr}="${k}" ${cur ? 'checked' : ''}><i class="switch"></i></label>`;
+  const row = ([title, hint], control) => `<div class="opt static"><div><b>${title}</b><span>${hint}</span></div>${control}</div>`;
+  const dirty = Object.keys(PEND).length > 0;
+  const upd = CONF.packaged ? `<p class="hint-line" style="margin:12px 0 0">${S.store}</p>`
+    : `${sw('check_updates', W.updates)}
+      <div class="opt static"><div><b>${S.version} ${esc(CONF.version || '')}</b><span id="upd-state">${CONF.update ? S.available(esc(CONF.update)) : S.checkHint}</span></div>
+        <div class="focus-btns">${CONF.update ? `<button class="btn small" id="upd-install">${T.updateBtn}</button>` : ''}<button class="btn ghost small" id="upd-check">${S.checkNow}</button></div></div>`;
+  return `<h1 class="title">${S.title}</h1><p class="lead">${S.lead}</p>
+  <div class="row c2b">
+    <div class="card"><h2>${P.theme}</h2><p class="hint-line">${S.themeHint}</p>${themeCards(CONF.theme, P.themes)}</div>
+    <div class="card"><h2>${P.widget}</h2><p class="hint-line">${S.widgetHint}</p>
+      ${sw('widget', W.widget, 'data-pk', CONF.widget)}
+      ${taskbarPreview(CONF.widget, CONF.theme, CONF.widget_line, CONF.widget_bar, CONF.widget_follow !== false)}
+      ${sw('widget_follow', P.follow, 'data-pk', CONF.widget_follow !== false)}
+      ${row(P.line, seg('widget_line', [['app', P.lineApp], ['goal', P.lineGoal], ['none', P.lineNone]], 'data-pk', CONF.widget_line))}
+      ${sw('widget_bar', P.bar, 'data-pk', CONF.widget_bar)}</div>
+  </div>
+  <div class="row c2b">
+    <div class="card"><h2>${S.general}</h2><p class="hint-line">${S.generalHint}</p>
+      ${row(W.lang, seg('lang', [['en', 'English'], ['fr', 'Français']]))}
+      ${row(W.goal, seg('goal_hours', [[4, '4 h'], [6, '6 h'], [8, '8 h'], [10, '10 h'], [12, '12 h']], 'data-sk', sv('goal_hours', (CONF.goal || 0) / 3600)))}
+      ${row(W.reminder, seg('break_reminder_minutes', [[0, W.never], [45, '45 min'], [60, '1 h'], [90, '1 h 30']]))}
+      ${sw('notifications', W.notifications)}
+      ${sw('autostart', W.autostart, 'data-ak', CONF.autostart)}</div>
+    <div class="card"><h2>${S.tracking}</h2><p class="hint-line">${S.trackingHint}</p>
+      ${row(S.idle, seg('idle_minutes', [[1, '1 min'], [3, '3 min'], [5, '5 min'], [10, '10 min']]))}
+      ${sw('group_versions', W.versions)}
+      ${sw('render_time', W.render)}</div>
+  </div>
+  <div class="row c2b">
+    <div class="card"><h2>${S.updates}</h2>${upd}</div>
+    <div class="card"><h2>${S.data}</h2><p class="hint-line">${T.local}</p>
+      <div class="focus-btns"><a class="btn ghost small" href="/api/export.csv" download>${T.export}</a><button class="btn ghost small" id="redo-setup">${S.redoSetup}</button></div></div>
+  </div>
+  <div class="savebar ${dirty ? 'on' : ''}"><span>${S.unsaved}</span><span class="focus-btns"><button class="btn ghost small" id="set-cancel">${S.cancel}</button><button class="btn small" id="set-save">${S.save}</button></span></div>`;
+}
+function redrawSettings() { const y = scrollY; $('#view').innerHTML = settingsHTML(); scrollTo(0, y); }
+document.addEventListener('click', async e => {
+  if (location.hash !== '#settings') return;
+  const t = e.target.closest('[data-theme-pick]'), pk = e.target.closest('.seg [data-pk]'), sk = e.target.closest('.seg [data-sk]');
+  if (t && !e.target.closest('#welcome')) { applyTheme(t.dataset.themePick); await savePrefs({ theme: t.dataset.themePick }); redrawSettings(); }
+  if (pk) { await savePrefs({ [pk.dataset.pk]: pk.dataset.v }); redrawSettings(); }
+  if (sk) { const v = sk.dataset.sk === 'lang' ? sk.dataset.v : +sk.dataset.v; if (String(CONF[sk.dataset.sk]) === String(v) || (sk.dataset.sk === 'goal_hours' && CONF.goal / 3600 === v)) delete PEND[sk.dataset.sk]; else PEND[sk.dataset.sk] = v; redrawSettings(); }
+  if (e.target.id === 'set-cancel') { PEND = {}; redrawSettings(); }
+  if (e.target.id === 'set-save') {
+    e.target.disabled = true; e.target.textContent = T.setup.applying;
+    let answer = '';
+    try { answer = await (await fetch('/api/settings', { method: 'POST', headers: { ...WRITE, 'Content-Type': 'application/json' }, body: JSON.stringify(PEND) })).text(); } catch {}
+    const lang = PEND.lang || CONF.lang; PEND = {};
+    if (answer === 'restart') await waitRestart(lang); else location.reload();
+  }
+  if (e.target.id === 'upd-check') {
+    e.target.disabled = true; $('#upd-state').textContent = T.settings.checking;
+    let r = {}; try { r = await (await fetch('/api/update/check', { method: 'POST', headers: WRITE })).json(); } catch { r = { error: 'offline' }; }
+    CONF.update = r.available || null; showUpdate(); redrawSettings();
+    if (!r.available) $('#upd-state').textContent = r.error ? T.settings.checkFailed(esc(r.error)) : T.settings.upToDate;
+  }
+  if (e.target.id === 'upd-install') $('#update-btn').click();
+  if (e.target.id === 'redo-setup') showWelcome();
 });
-$('#pf-body').addEventListener('change', e => { if (e.target.dataset.pk) { savePrefs({ [e.target.dataset.pk]: e.target.checked }); drawPrefs(); } });
+document.addEventListener('change', async e => {
+  if (location.hash !== '#settings' || e.target.closest('#welcome')) return;
+  const d = e.target.dataset;
+  if (d.pk) { await savePrefs({ [d.pk]: e.target.checked }); redrawSettings(); }
+  if (d.ak) { try { await fetch('/api/settings', { method: 'POST', headers: { ...WRITE, 'Content-Type': 'application/json' }, body: JSON.stringify({ autostart: e.target.checked }) }); } catch {} CONF.autostart = e.target.checked; }
+  if (d.sk) { if (!!CONF[d.sk] === e.target.checked) delete PEND[d.sk]; else PEND[d.sk] = e.target.checked; redrawSettings(); }
+});
+// After a settings change Ounce restarts: wait until it answers again, then reload.
+async function waitRestart(lang) {
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    try { const c = await getJSON('/api/config'); if (c.lang === lang && i > 2) break; } catch {}
+  }
+  location.reload();
+}
 
 // First start: a three-step setup (language, rhythm, options). Settings that live in
 // config.toml are written by the tracker, which then restarts to apply them.
@@ -1498,11 +1580,7 @@ $('#wl-go').onclick = async () => {
   if (answer !== 'restart') { go.disabled = false; $('#welcome').close(); return; }
   // Ounce restarts with the new settings: wait for it, then reload in the chosen language.
   go.textContent = I18N[SETUP.lang].setup.applying;
-  for (let i = 0; i < 40; i++) {
-    await new Promise(r => setTimeout(r, 500));
-    try { const c = await getJSON('/api/config'); if (c.lang === SETUP.lang && i > 2) break; } catch {}
-  }
-  location.reload();
+  await waitRestart(SETUP.lang);
 };
 
 // Update banner: the tracker downloads the new exe, swaps it and restarts; the page then reloads.

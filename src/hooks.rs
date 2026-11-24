@@ -16,6 +16,10 @@ pub struct Hooks {
     /// Widget look: dashboard theme, second line ("app", "goal", "none"), goal progress bar,
     /// and whether the widget follows the theme.
     pub widget_style: fn(&str, &str, bool, bool),
+    /// Checks GitHub for a new version now: Ok(Some(version)) if one is available.
+    pub check_update: fn() -> Result<Option<String>, String>,
+    /// True for the Microsoft Store build (updated by the Store).
+    pub packaged: fn() -> bool,
 }
 
 static HOOKS: OnceLock<Hooks> = OnceLock::new();

@@ -1142,27 +1142,54 @@ fn check_for_update() -> Result<Option<update::Release>, String> {
 }
 
 /// Sleeping thread: checks one minute after start, then once a day.
-fn update_loop(notify: bool) {
-    std::thread::sleep(Duration::from_secs(60));
-    let mut announced = String::new();
-    loop {
-        match check_for_update() {
-            Ok(Some(r)) => {
-                dlog!("update {} available", r.version);
-                if r.version != announced {
-                    announced = r.version.clone();
-                    if notify {
-                        post_notice(Notice::Update {
-                            version: r.version.clone(),
-                        });
-                    }
-                }
-                update::set_available(Some(r));
+/// Version already announced by a notification (once per version).
+static ANNOUNCED: Mutex<String> = Mutex::new(String::new());
+static NOTIFY_UPDATES: AtomicBool = AtomicBool::new(true);
+
+/// One check: remembers the release for the tray menu and the dashboard, notifies once.
+fn run_update_check() -> Result<Option<String>, String> {
+    if is_packaged() {
+        return Ok(None);
+    }
+    match check_for_update() {
+        Ok(Some(r)) => {
+            dlog!("update {} available", r.version);
+            let new = ANNOUNCED
+                .lock()
+                .map(|mut a| {
+                    let new = *a != r.version;
+                    *a = r.version.clone();
+                    new
+                })
+                .unwrap_or(false);
+            if new && NOTIFY_UPDATES.load(Ordering::Relaxed) {
+                post_notice(Notice::Update {
+                    version: r.version.clone(),
+                });
             }
-            Ok(None) => dlog!("update check: up to date"),
-            Err(e) => dlog!("update check failed: {e}"),
+            let version = r.version.clone();
+            update::set_available(Some(r));
+            Ok(Some(version))
         }
-        std::thread::sleep(Duration::from_secs(24 * 3600));
+        Ok(None) => {
+            dlog!("update check: up to date");
+            Ok(None)
+        }
+        Err(e) => {
+            dlog!("update check failed: {e}");
+            Err(e)
+        }
+    }
+}
+
+/// A minute after start, then every 6 hours (a PC that is never shut down still hears
+/// about a new version the same day).
+fn update_loop(notify: bool) {
+    NOTIFY_UPDATES.store(notify, Ordering::Relaxed);
+    std::thread::sleep(Duration::from_secs(60));
+    loop {
+        let _ = run_update_check();
+        std::thread::sleep(Duration::from_secs(6 * 3600));
     }
 }
 
@@ -1624,6 +1651,8 @@ pub fn main() -> i32 {
         focus: |minutes| post_tray(WM_FOCUS, minutes.clamp(0, 600) as usize),
         restart: || post_tray(WM_RESTART, 1),
         widget_style: set_widget_style,
+        check_update: run_update_check,
+        packaged: is_packaged,
     });
 
     let port = cfg.web_port;

@@ -319,6 +319,9 @@ pub fn serve(
                     "autostart": crate::hooks::get().is_some_and(|h| (h.autostart)()),
                     "focus_end": crate::collector::focus_end(),
                     "notifications": cfg.notifications,
+                    "break_minutes_cfg": cfg.break_minutes,
+                    "idle_minutes": cfg.idle_threshold_secs / 60,
+                    "packaged": crate::hooks::get().is_some_and(|h| (h.packaged)()),
                     "check_updates": cfg.check_updates,
                     "render_time": cfg.render_time,
                     "group_versions": cfg.group_versions,
@@ -327,6 +330,17 @@ pub fn serve(
                     "widget_bar": store.meta("widget_bar").as_deref() != Some("0"),
                     "widget_follow": store.meta("widget_follow").as_deref() != Some("0"),
                 });
+                req.respond(
+                    Response::from_string(body.to_string()).with_header(header("application/json")),
+                )
+            }
+            // Settings > "Check now": asks GitHub right away.
+            "/api/update/check" if method == tiny_http::Method::Post => {
+                let body = match crate::hooks::get().map(|h| (h.check_update)()) {
+                    Some(Ok(v)) => serde_json::json!({ "available": v }),
+                    Some(Err(e)) => serde_json::json!({ "error": e }),
+                    None => serde_json::json!({ "error": "unavailable" }),
+                };
                 req.respond(
                     Response::from_string(body.to_string()).with_header(header("application/json")),
                 )
@@ -379,7 +393,9 @@ pub fn serve(
                 req.respond(Response::from_string("ok"))
             }
             // First-start setup: language, goal, reminders, options; then a restart applies it.
-            "/api/onboarding" if method == tiny_http::Method::Post => {
+            // First-start setup and the Settings page. Settings kept in config.toml are applied
+            // by a restart; theme and widget style apply at once.
+            "/api/onboarding" | "/api/settings" if method == tiny_http::Method::Post => {
                 let v = read_json(&mut req, 2048);
                 let mut values: Vec<(&str, String)> = Vec::new();
                 if let Some(l) = v["lang"].as_str().filter(|l| ["en", "fr"].contains(l)) {
@@ -390,6 +406,9 @@ pub fn serve(
                     .filter(|h| (0.0..=24.0).contains(h))
                 {
                     values.push(("daily_goal_hours", format!("{h:.1}")));
+                }
+                if let Some(m) = v["idle_minutes"].as_u64().filter(|m| (1..=60).contains(m)) {
+                    values.push(("idle_threshold_secs", (m * 60).to_string()));
                 }
                 if let Some(m) = v["break_reminder_minutes"].as_u64().filter(|m| *m <= 600) {
                     values.push(("break_reminder_minutes", m.to_string()));
@@ -404,7 +423,9 @@ pub fn serve(
                         values.push((key, b.to_string()));
                     }
                 }
-                let _ = store.set_meta("onboarded", "1");
+                if path == "/api/onboarding" {
+                    let _ = store.set_meta("onboarded", "1");
+                }
                 save_prefs(&store, &v);
                 let mut restart = false;
                 if let (Some(path), false) = (config_path, values.is_empty()) {
@@ -414,7 +435,6 @@ pub fn serve(
                     restart = new != text && std::fs::write(path, &new).is_ok();
                 }
                 if let Some(h) = crate::hooks::get() {
-                    (h.set_widget)(v["widget"].as_bool().unwrap_or(false));
                     if let Some(on) = v["autostart"].as_bool() {
                         (h.set_autostart)(on);
                     }
