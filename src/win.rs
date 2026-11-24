@@ -33,7 +33,7 @@ use windows::Win32::Networking::WinHttp::{
 use windows::Win32::Storage::Packaging::Appx::{
     GetCurrentPackageFamilyName, GetCurrentPackageFullName,
 };
-use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
+use windows::Win32::System::Com::CoIncrementMTAUsage;
 use windows::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, GetStdHandle, STD_OUTPUT_HANDLE,
 };
@@ -382,12 +382,15 @@ fn package_local_state() -> Option<PathBuf> {
 }
 
 /// Reads (None) or changes the package's StartupTask; returns whether it is enabled.
-/// WinRT runs on its own MTA thread so the tray thread never blocks on COM.
+/// WinRT runs on its own (implicit MTA) thread so the tray thread never blocks on COM.
 fn startup_task(change: Option<bool>) -> Option<bool> {
+    // Keep the process-wide MTA alive: windows-rs caches WinRT factories, which must not
+    // outlive the apartment they were created in.
+    static MTA: OnceLock<()> = OnceLock::new();
+    MTA.get_or_init(|| unsafe {
+        let _ = CoIncrementMTAUsage();
+    });
     std::thread::spawn(move || -> Option<bool> {
-        unsafe {
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        }
         let task = StartupTask::GetAsync(&HSTRING::from("ActivityTracker"))
             .ok()?
             .join()
