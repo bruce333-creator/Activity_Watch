@@ -146,6 +146,7 @@ pub struct Menu {
     pub resume: &'static str,
     pub startup: &'static str,
     pub quit: &'static str,
+    pub settings: &'static str,
     /// "Install update {version}"
     pub update: &'static str,
     pub paused_tip: &'static str,
@@ -160,6 +161,7 @@ pub fn menu(lang: Lang) -> Menu {
             resume: "Reprendre le suivi",
             startup: "Lancer au démarrage de Windows",
             quit: "Quitter",
+            settings: "Modifier les réglages…",
             update: "Installer la mise à jour {}",
             paused_tip: "Activity Tracker (en pause)",
         },
@@ -170,6 +172,7 @@ pub fn menu(lang: Lang) -> Menu {
             resume: "Resume tracking",
             startup: "Run at Windows startup",
             quit: "Quit",
+            settings: "Edit settings…",
             update: "Install update {}",
             paused_tip: "Activity Tracker (paused)",
         },

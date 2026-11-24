@@ -61,6 +61,47 @@ jobs:
           name: activity-tracker
           path: target/release/activity-tracker.exe
 
+      # Microsoft Store package. Upload activity-tracker.msix in Partner Center: the Store signs it.
+      # Set the repository variables MSIX_IDENTITY_NAME, MSIX_PUBLISHER and
+      # MSIX_PUBLISHER_DISPLAY_NAME to the values of Partner Center > Product identity.
+      - name: Store package (MSIX) + install test
+        shell: pwsh
+        env:
+          MSIX_NAME: ${{ vars.MSIX_IDENTITY_NAME || 'EnzoFreminet.ActivityTracker' }}
+          MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER || 'CN=Enzo Freminet' }}
+          MSIX_PUBLISHER_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME || 'Enzo Freminet' }}
+        run: |
+          $sdk = (Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.*\x64\makeappx.exe" | Sort-Object FullName | Select-Object -Last 1).DirectoryName
+          "Windows SDK tools: $sdk"
+          New-Item -ItemType Directory msix\Assets -Force | Out-Null
+          Copy-Item target\release\activity-tracker.exe msix\
+          Copy-Item packaging\Assets\* msix\Assets\
+          (Get-Content packaging\AppxManifest.xml -Raw).Replace('{{NAME}}', $env:MSIX_NAME).Replace('{{PUBLISHER}}', $env:MSIX_PUBLISHER).Replace('{{PUBLISHER_NAME}}', $env:MSIX_PUBLISHER_NAME).Replace('{{VERSION}}', "${{ steps.ver.outputs.version }}.0") |
+            Set-Content msix\AppxManifest.xml -Encoding utf8
+          & "$sdk\makeappx.exe" pack /d msix /p activity-tracker.msix /o
+          if ($LASTEXITCODE) { exit 1 }
+
+          # Test: sign a copy with a throwaway certificate, install it, run the packaged selftest.
+          Copy-Item activity-tracker.msix test.msix
+          $cert = New-SelfSignedCertificate -Type Custom -Subject $env:MSIX_PUBLISHER -KeyUsage DigitalSignature `
+                    -CertStoreLocation Cert:\CurrentUser\My -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+          & "$sdk\signtool.exe" sign /fd SHA256 /sha1 $cert.Thumbprint test.msix
+          if ($LASTEXITCODE) { exit 1 }
+          Export-Certificate -Cert $cert -FilePath test.cer | Out-Null
+          Import-Certificate -FilePath test.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+          Add-AppxPackage test.msix
+          $p = Start-Process -FilePath "$env:LOCALAPPDATA\Microsoft\WindowsApps\activity-tracker.exe" -ArgumentList '--selftest' `
+                 -Wait -PassThru -NoNewWindow -RedirectStandardOutput msix-selftest.txt -RedirectStandardError msix-selftest-err.txt
+          Get-Content msix-selftest.txt
+          Get-Content msix-selftest-err.txt
+          if ($p.ExitCode -ne 0) { Write-Error "packaged selftest exit code $($p.ExitCode)"; exit 1 }
+          if (-not (Select-String -Path msix-selftest.txt -Pattern 'Store package +: yes.*startup task Some')) { Write-Error "not running as a package"; exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: activity-tracker-store
+          path: activity-tracker.msix
+
       - name: Attach to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || inputs.release
         uses: softprops/action-gh-release@v2

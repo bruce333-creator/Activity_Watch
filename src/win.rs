@@ -9,12 +9,13 @@ use crate::timeutil::now_unix;
 use crate::{dlog, log, server, update};
 use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU32, Ordering};
 use std::sync::mpsc::{Sender, channel};
+use std::sync::{Mutex, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use windows::ApplicationModel::{StartupTask, StartupTaskState};
 use windows::Win32::Foundation::{
     CloseHandle, ERROR_ALREADY_EXISTS, FILETIME, GetLastError, HANDLE, HINSTANCE, HWND, LPARAM,
     LRESULT, POINT, WPARAM,
@@ -29,6 +30,10 @@ use windows::Win32::Networking::WinHttp::{
     WinHttpOpen, WinHttpOpenRequest, WinHttpQueryHeaders, WinHttpReadData, WinHttpReceiveResponse,
     WinHttpSendRequest, WinHttpSetTimeouts,
 };
+use windows::Win32::Storage::Packaging::Appx::{
+    GetCurrentPackageFamilyName, GetCurrentPackageFullName,
+};
+use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
 use windows::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, GetStdHandle, STD_OUTPUT_HANDLE,
 };
@@ -46,8 +51,9 @@ use windows::Win32::System::Threading::{
     BELOW_NORMAL_PRIORITY_CLASS, CreateMutexW, GetCurrentProcess, GetProcessTimes, OpenProcess,
     PROCESS_NAME_WIN32, PROCESS_POWER_THROTTLING_CURRENT_VERSION,
     PROCESS_POWER_THROTTLING_EXECUTION_SPEED, PROCESS_POWER_THROTTLING_STATE,
-    PROCESS_QUERY_LIMITED_INFORMATION, ProcessPowerThrottling, QueryFullProcessImageNameW,
-    SetPriorityClass, SetProcessInformation,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
+    ProcessPowerThrottling, QueryFullProcessImageNameW, SetPriorityClass, SetProcessInformation,
+    TerminateProcess, WaitForSingleObject,
 };
 use windows::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
@@ -60,13 +66,14 @@ use windows::Win32::UI::Shell::{
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyIcon, DestroyMenu,
-    DispatchMessageW, GetCursorPos, GetForegroundWindow, GetIconInfo, GetMessageW,
+    DispatchMessageW, FindWindowW, GetCursorPos, GetForegroundWindow, GetIconInfo, GetMessageW,
     GetSystemMetrics, GetWindowTextW, GetWindowThreadProcessId, HICON, ICONINFO, IMAGE_ICON,
     LR_DEFAULTCOLOR, LoadImageW, MF_CHECKED, MF_SEPARATOR, MF_STRING, MSG, PostMessageW,
-    PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SM_CXICON, SM_CXSMICON, SW_SHOWNORMAL,
-    SetForegroundWindow, SetMenuDefaultItem, TPM_NONOTIFY, TPM_RETURNCMD, TPM_RIGHTBUTTON,
-    TrackPopupMenu, TranslateMessage, WINDOW_EX_STYLE, WM_APP, WM_CONTEXTMENU, WM_ENDSESSION,
-    WM_LBUTTONUP, WM_NULL, WM_QUERYENDSESSION, WM_RBUTTONUP, WNDCLASSW, WS_OVERLAPPED,
+    PostQuitMessage, RegisterClassW, RegisterWindowMessageW, SM_CXICON, SM_CXSMICON,
+    SMTO_ABORTIFHUNG, SW_SHOWNORMAL, SendMessageTimeoutW, SetForegroundWindow, SetMenuDefaultItem,
+    TPM_NONOTIFY, TPM_RETURNCMD, TPM_RIGHTBUTTON, TrackPopupMenu, TranslateMessage,
+    WINDOW_EX_STYLE, WM_APP, WM_CONTEXTMENU, WM_ENDSESSION, WM_LBUTTONUP, WM_NULL,
+    WM_QUERYENDSESSION, WM_RBUTTONUP, WNDCLASSW, WS_OVERLAPPED,
 };
 use windows::core::{HSTRING, PCWSTR, PWSTR, w};
 
@@ -340,7 +347,102 @@ fn single_instance(wait: bool) -> bool {
     false
 }
 
+// ---------------------------------------------------------------- Store (MSIX) package
+
+/// True when running from the Microsoft Store package. The exe folder is then read-only,
+/// updates come from the Store and autostart is a StartupTask declared in the manifest.
+fn is_packaged() -> bool {
+    static PACKAGED: OnceLock<bool> = OnceLock::new();
+    *PACKAGED.get_or_init(|| {
+        let mut len = 0u32;
+        // APPMODEL_ERROR_NO_PACKAGE (15700) when not packaged.
+        unsafe { GetCurrentPackageFullName(&mut len, None).0 != 15700 }
+    })
+}
+
+/// %LOCALAPPDATA%\Packages\<family>\LocalState: the package's real, writable data folder
+/// (plain %APPDATA% would be silently redirected, out of the user's reach).
+fn package_local_state() -> Option<PathBuf> {
+    let mut len = 0u32;
+    unsafe {
+        let _ = GetCurrentPackageFamilyName(&mut len, None);
+        let mut buf = vec![0u16; len as usize];
+        if GetCurrentPackageFamilyName(&mut len, Some(PWSTR(buf.as_mut_ptr()))).0 != 0 {
+            return None;
+        }
+        let family = String::from_utf16_lossy(&buf[..len.saturating_sub(1) as usize]);
+        let local = std::env::var_os("LOCALAPPDATA")?;
+        Some(
+            PathBuf::from(local)
+                .join("Packages")
+                .join(family)
+                .join("LocalState"),
+        )
+    }
+}
+
+/// Reads (None) or changes the package's StartupTask; returns whether it is enabled.
+/// WinRT runs on its own MTA thread so the tray thread never blocks on COM.
+fn startup_task(change: Option<bool>) -> Option<bool> {
+    std::thread::spawn(move || -> Option<bool> {
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        }
+        let task = StartupTask::GetAsync(&HSTRING::from("ActivityTracker"))
+            .ok()?
+            .join()
+            .ok()?;
+        match change {
+            Some(true) => {
+                task.RequestEnableAsync().ok()?.join().ok()?;
+            }
+            Some(false) => task.Disable().ok()?,
+            None => {}
+        }
+        let state = task.State().ok()?;
+        Some(state == StartupTaskState::Enabled || state == StartupTaskState::EnabledByPolicy)
+    })
+    .join()
+    .ok()
+    .flatten()
+}
+
+/// Another copy is running from a different exe (typically a new download while an old
+/// version runs at startup): save its session, close it, and let the launched exe take over.
+/// Works with every version since 0.3, which all flush on WM_ENDSESSION.
+fn replace_other_copy(exe: &Path) -> Option<bool> {
+    unsafe {
+        let hwnd = FindWindowW(w!("ActivityTrackerTray"), PCWSTR::null()).ok()?;
+        let mut pid = 0u32;
+        GetWindowThreadProcessId(hwnd, Some(&mut pid));
+        let other = process_path(pid)?;
+        if other.eq_ignore_ascii_case(&exe.to_string_lossy()) {
+            return Some(false);
+        }
+        dlog!("another copy runs from {other}: replacing it");
+        let mut result = 0usize;
+        let _ = SendMessageTimeoutW(
+            hwnd,
+            WM_ENDSESSION,
+            WPARAM(1),
+            LPARAM(0),
+            SMTO_ABORTIFHUNG,
+            5000,
+            Some(&mut result),
+        );
+        let _ = Shell_NotifyIconW(NIM_DELETE, &icon_data(hwnd));
+        let process = OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, false, pid).ok()?;
+        let _ = TerminateProcess(process, 0);
+        let _ = WaitForSingleObject(process, 5000);
+        let _ = CloseHandle(process);
+        Some(true)
+    }
+}
+
 fn autostart_enabled() -> bool {
+    if is_packaged() {
+        return startup_task(None) == Some(true);
+    }
     unsafe {
         RegGetValueW(
             HKEY_CURRENT_USER,
@@ -356,6 +458,13 @@ fn autostart_enabled() -> bool {
 }
 
 fn set_autostart(exe: &Path, enable: bool) -> Result<(), String> {
+    if is_packaged() {
+        return match startup_task(Some(enable)) {
+            Some(state) if state == enable => Ok(()),
+            Some(_) => Err("turned off in Windows Settings > Apps > Startup".into()),
+            None => Err("startup task unavailable".into()),
+        };
+    }
     let err = unsafe {
         if enable {
             let value: Vec<u16> = format!("\"{}\"", exe.display())
@@ -381,6 +490,9 @@ fn set_autostart(exe: &Path, enable: bool) -> Result<(), String> {
     }
 }
 
+/// Data folder (database, Edge window profile; config and log for the Store build).
+static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+
 /// Edge's location (preinstalled on Windows 10/11).
 fn edge_path() -> Option<PathBuf> {
     ["ProgramFiles(x86)", "ProgramFiles", "LOCALAPPDATA"]
@@ -392,13 +504,20 @@ fn edge_path() -> Option<PathBuf> {
 
 /// Opens the dashboard as a standalone app window (Edge app mode: no tabs, no address bar).
 /// Falls back to the default browser.
+/// Edge gets its own profile: the app window never comes back when the user opens their
+/// browser (session restore), and the user's extensions and tabs stay out of it.
 fn open_ui(port: u16, page: &str) {
     let url = format!("http://127.0.0.1:{port}/{page}");
     if let Some(edge) = edge_path() {
-        let spawned = std::process::Command::new(edge)
-            .arg(format!("--app={url}"))
+        let mut cmd = std::process::Command::new(edge);
+        cmd.arg(format!("--app={url}"))
             .arg("--window-size=1240,900")
-            .spawn();
+            .arg("--no-first-run")
+            .arg("--no-default-browser-check");
+        if let Some(dir) = DATA_DIR.get() {
+            cmd.arg(format!("--user-data-dir={}", dir.join("window").display()));
+        }
+        let spawned = cmd.spawn();
         if spawned.is_ok() {
             return;
         }
@@ -441,6 +560,7 @@ const ID_PAUSE: u32 = 3;
 const ID_STARTUP: u32 = 4;
 const ID_QUIT: u32 = 5;
 const ID_UPDATE: u32 = 6;
+const ID_SETTINGS: u32 = 7;
 
 /// State of the tray, used from its window procedure (main thread).
 struct Tray {
@@ -453,6 +573,7 @@ struct Tray {
     wrapped_auto_open: bool,
     /// Page opened when the last notification is clicked.
     notice_page: &'static str,
+    config: PathBuf,
 }
 
 static TRAY: Mutex<Option<Tray>> = Mutex::new(None);
@@ -585,6 +706,7 @@ fn show_menu(hwnd: HWND) {
                 MF_STRING
             },
         );
+        item(ID_SETTINGS, m.settings, MF_STRING);
         let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
         item(ID_QUIT, m.quit, MF_STRING);
         let _ = SetMenuDefaultItem(hmenu, ID_OPEN, 0);
@@ -640,6 +762,11 @@ fn show_menu(hwnd: HWND) {
                 PostQuitMessage(0);
             }
             ID_UPDATE => install_update(),
+            ID_SETTINGS => {
+                if let Some(path) = tray(|t| t.config.clone()) {
+                    let _ = std::process::Command::new("notepad.exe").arg(path).spawn();
+                }
+            }
             _ => {}
         }
     }
@@ -987,13 +1114,28 @@ pub fn main() -> i32 {
         // Sharp tray icon and menu on high-DPI screens.
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     }
-    let (cfg, cfg_err) = Config::load_or_create(&dir.join("config.toml"));
+    let packaged = is_packaged();
+    let data_dir = packaged
+        .then(package_local_state)
+        .flatten()
+        .unwrap_or_else(|| {
+            std::env::var_os("APPDATA")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| dir.clone())
+                .join("ActivityTracker")
+        });
+    let _ = std::fs::create_dir_all(&data_dir);
+    let _ = DATA_DIR.set(data_dir.clone());
+    // The Store build cannot write next to its exe.
+    let settings_dir = if packaged { &data_dir } else { &dir };
+    let config_path = settings_dir.join("config.toml");
+    let (cfg, cfg_err) = Config::load_or_create(&config_path);
     let lang = Lang::resolve(&cfg.language);
     let offset = Store::open_in_memory()
         .map(|s| s.local_offset())
         .unwrap_or(0);
     if has("--debug-log") {
-        let _ = log::init(&dir.join("activity-tracker.log"), offset);
+        let _ = log::init(&settings_dir.join("activity-tracker.log"), offset);
     }
     dlog!(
         "==== activity-tracker {} starting, exe {}",
@@ -1006,7 +1148,11 @@ pub fn main() -> i32 {
             eprintln!("warning: {e}");
         }
     }
-    dlog!("config: {cfg:?}, language {}", lang.code());
+    dlog!(
+        "config {}: {cfg:?}, language {}, packaged {packaged}",
+        config_path.display(),
+        lang.code()
+    );
     set_low_priority();
 
     if has("--selftest") {
@@ -1014,19 +1160,21 @@ pub fn main() -> i32 {
     }
     let updated = has("--updated");
     if !single_instance(updated) {
-        dlog!("another instance is running: opening the dashboard and exiting");
-        open_ui(cfg.web_port, "");
-        return 0;
+        let replaced = replace_other_copy(&exe) == Some(true);
+        if !replaced || !single_instance(true) {
+            dlog!("another instance is running: opening the dashboard and exiting");
+            open_ui(cfg.web_port, "");
+            return 0;
+        }
+        // Autostart must now start this exe, not the replaced one.
+        if !packaged && autostart_enabled() {
+            let _ = set_autostart(&exe, true);
+        }
     }
     // Leftovers of an update.
     let _ = std::fs::remove_file(exe.with_extension("exe.old"));
     let _ = std::fs::remove_file(exe.with_extension("exe.new"));
 
-    let data_dir = std::env::var_os("APPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| dir.clone())
-        .join("ActivityTracker");
-    let _ = std::fs::create_dir_all(&data_dir);
     let db = data_dir.join("activity.db");
     let store = match Store::open(&db) {
         Ok(s) => s,
@@ -1054,6 +1202,7 @@ pub fn main() -> i32 {
         paused: false,
         wrapped_auto_open: cfg.wrapped_auto_open,
         notice_page: "",
+        config: config_path,
     });
     let (notify, check_updates) = (cfg.notifications, cfg.check_updates);
     let mut collector = Collector::new(WinProbe::new(), store, cfg);
@@ -1074,7 +1223,8 @@ pub fn main() -> i32 {
             version: update::CURRENT.into(),
         });
     }
-    if check_updates {
+    // Store builds are updated by the Store.
+    if check_updates && !packaged {
         std::thread::spawn(move || update_loop(notify));
     }
 
@@ -1171,6 +1321,20 @@ fn selftest(cfg: Config, lang: Lang, exe: &Path) -> i32 {
     );
     println!("samples / errors   : {ticks} / {errors}");
     println!("update check       : {update_check}");
+    println!(
+        "Store package      : {}",
+        if is_packaged() {
+            format!(
+                "yes, data in {}, startup task {:?}",
+                DATA_DIR
+                    .get()
+                    .map_or(String::new(), |d| d.display().to_string()),
+                startup_task(None)
+            )
+        } else {
+            "no".into()
+        }
+    );
     println!(
         "exe icon -> PNG    : {}",
         own_icon
