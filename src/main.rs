@@ -35,7 +35,7 @@ fn main() {
         });
         let lang = notice::Lang::resolve(&cfg.language);
         println!("dashboard on http://127.0.0.1:{}", cfg.web_port);
-        server::serve(db.as_ref(), cfg, lang, None);
+        server::serve(db.as_ref(), None, cfg, lang, None);
         return;
     }
     eprintln!(

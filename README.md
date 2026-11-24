@@ -95,7 +95,25 @@ Everything is saved in the database (`%APPDATA%\Ounce\activity.db`): it is perma
 
 ### First start
 
-The first time Ounce runs on a PC, its window opens with two choices: **Show on the taskbar** (off by default) and **Start with Windows**. Both can be changed later from the tray menu.
+The first time Ounce runs on a PC, its window opens a three-step setup:
+
+1. **Language**: English or French.
+2. **Your rhythm**: daily screen-time goal, break reminder, notifications.
+3. **Options**: taskbar widget (off by default), start with Windows, group versions of a scene, count render time (off by default), check for updates.
+
+The choices are written to `config.toml` and Ounce restarts by itself to apply them. Everything can be changed later (tray menu, or *Edit settings…*).
+
+### Focus mode
+
+Right-click the tray icon → **Focus 25 min** or **Focus 50 min**, or use the *Focus mode* card on the *Today* page. During the session, break reminders and app limits stay quiet; the taskbar widget shows the time left (◎ 18 min). A notification tells you when it is over.
+
+### Versions of a scene
+
+`robot_v01.mb`, `robot_v02.mb`, `robot-v3 final.mb` or `robot (1).mb` count as one project, **robot.mb**, which lists how many versions it has. Shot and asset numbers (`shot_010.nk`) are kept apart. Turn it off with `group_versions = false`.
+
+### Render time (option)
+
+With `render_time = true` (or the setup option), while you are away Ounce checks every 30 s whether a 3D or video app (Maya, Blender, Houdini, Arnold, After Effects, Nuke, 3ds Max, V-Ray…) keeps at least one processor core busy. That time is counted as **render time** for the scene last open in that app, apart from your screen time: it shows under *Screen time* and next to the project. Off by default.
 
 ### Taskbar widget
 
@@ -309,4 +327,4 @@ The result is `target\release\ounce.exe`. Win32 code lives only in `src/win.rs`;
 | `src/probe.rs` | `SystemProbe` interface (+ fake probe for tests) |
 | `src/win.rs` | Win32: foreground window and title, idle, lock, exe icons, tray and notifications, Edge window, registry, update download and exe swap, Store package (data folder, startup task) |
 | `packaging/` | Microsoft Store manifest and tile images |
-| `assets/` | Dashboard page, logo (`logo.svg` is the source), icons and Manrope font (embedded in the exe; `build.rs` also adds version info) |
+| `assets/` | Dashboard page, logo (`logo.js` draws every icon size), icons and Manrope font (embedded in the exe; `build.rs` also adds version info) |

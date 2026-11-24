@@ -48,6 +48,9 @@ use windows::Win32::System::Com::{
 use windows::Win32::System::Console::{
     ATTACH_PARENT_PROCESS, AttachConsole, GetStdHandle, STD_OUTPUT_HANDLE,
 };
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
+};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
 use windows::Win32::System::Registry::{
@@ -223,6 +226,37 @@ impl SystemProbe for WinProbe {
 
     fn working_set_bytes(&mut self) -> u64 {
         memory().0
+    }
+
+    fn cpu_seconds(&mut self, names: &[&str]) -> std::collections::HashMap<String, f64> {
+        let mut out = std::collections::HashMap::new();
+        unsafe {
+            let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
+                return out;
+            };
+            let mut e = PROCESSENTRY32W {
+                dwSize: size_of::<PROCESSENTRY32W>() as u32,
+                ..Default::default()
+            };
+            let mut ok = Process32FirstW(snap, &mut e).is_ok();
+            while ok {
+                let len = e.szExeFile.iter().position(|&c| c == 0).unwrap_or(0);
+                let name = String::from_utf16_lossy(&e.szExeFile[..len]).to_lowercase();
+                if names.contains(&name.as_str()) {
+                    if let Ok(h) =
+                        OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, e.th32ProcessID)
+                    {
+                        if let Some(t) = process_cpu_100ns(h) {
+                            *out.entry(name).or_insert(0.0) += t as f64 / 1e7;
+                        }
+                        let _ = CloseHandle(h);
+                    }
+                }
+                ok = Process32NextW(snap, &mut e).is_ok();
+            }
+            let _ = CloseHandle(snap);
+        }
+        out
     }
 }
 
@@ -627,6 +661,11 @@ const ID_QUIT: u32 = 5;
 const ID_UPDATE: u32 = 6;
 const ID_SETTINGS: u32 = 7;
 const ID_WIDGET: u32 = 8;
+const ID_FOCUS_25: u32 = 9;
+const ID_FOCUS_50: u32 = 10;
+const ID_FOCUS_STOP: u32 = 11;
+/// Dashboard: start or stop a focus session (wparam = minutes, 0 stops).
+const WM_FOCUS: u32 = WM_APP + 5;
 
 /// State of the tray, used from its window procedure (main thread).
 struct Tray {
@@ -734,6 +773,24 @@ fn post_notice(n: Notice) {
     }
 }
 
+/// Tray thread: starts (minutes > 0) or stops a focus session.
+fn start_focus(minutes: i64) {
+    if let Ok(mut f) = crate::collector::FOCUS_END.lock() {
+        *f = (minutes > 0).then(|| now_unix() + minutes * 60);
+    }
+    tray(|t| t.tx.send(Cmd::Focus(minutes)));
+    widget_refresh();
+}
+
+fn post_tray(msg: u32, wp: usize) {
+    let hwnd = TRAY_HWND.load(Ordering::Relaxed);
+    if hwnd != 0 {
+        unsafe {
+            let _ = PostMessageW(Some(HWND(hwnd as *mut _)), msg, WPARAM(wp), LPARAM(0));
+        }
+    }
+}
+
 /// Stops the collector and waits for its final write.
 fn stop_collector() {
     if let Some(worker) = tray(|t| {
@@ -764,6 +821,17 @@ fn show_menu(hwnd: HWND) {
         item(ID_OPEN, m.open, MF_STRING);
         item(ID_WRAPPED, m.wrapped, MF_STRING);
         let _ = AppendMenuW(hmenu, MF_SEPARATOR, 0, PCWSTR::null());
+        match crate::collector::focus_end() {
+            Some(end) => item(
+                ID_FOCUS_STOP,
+                &format!("{} ({})", m.focus_stop, short_duration(end - now_unix())),
+                MF_STRING,
+            ),
+            None => {
+                item(ID_FOCUS_25, &m.focus.replace("{}", "25"), MF_STRING);
+                item(ID_FOCUS_50, &m.focus.replace("{}", "50"), MF_STRING);
+            }
+        }
         item(ID_PAUSE, if paused { m.resume } else { m.pause }, MF_STRING);
         item(
             ID_STARTUP,
@@ -837,6 +905,9 @@ fn show_menu(hwnd: HWND) {
             }
             ID_UPDATE => install_update(),
             ID_WIDGET => set_widget(!widget),
+            ID_FOCUS_25 => start_focus(25),
+            ID_FOCUS_50 => start_focus(50),
+            ID_FOCUS_STOP => start_focus(0),
             ID_SETTINGS => {
                 if let Some(path) = tray(|t| t.config.clone()) {
                     let _ = std::process::Command::new("notepad.exe").arg(path).spawn();
@@ -883,10 +954,11 @@ unsafe extern "system" fn tray_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
                 }
             }
         }
+        // wparam 0: after an update; 1: after the settings changed.
         WM_RESTART => {
             let exe = tray(|t| t.exe.clone()).unwrap_or_default();
             let mut cmd = std::process::Command::new(&exe);
-            cmd.arg("--updated");
+            cmd.arg(if wp.0 == 0 { "--updated" } else { "--restart" });
             if std::env::args().any(|a| a == "--debug-log") {
                 cmd.arg("--debug-log");
             }
@@ -904,6 +976,7 @@ unsafe extern "system" fn tray_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
             }
         }
         WM_WIDGET => set_widget(wp.0 != 0),
+        WM_FOCUS => start_focus(wp.0 as i64),
         WM_QUERYENDSESSION => return LRESULT(1),
         WM_ENDSESSION => {
             // Windows is shutting down / logging off: save the current session now.
@@ -1389,7 +1462,8 @@ fn uninstall(exe: &Path, quiet: bool) -> i32 {
 // ---------------------------------------------------------------- entry point
 
 const USAGE: &str = "ounce [--debug-log] [--selftest] [--install-autostart] [--uninstall-autostart] [--uninstall [--quiet]]";
-// --updated is internal: passed by the old exe when it restarts the new one.
+// --updated and --restart are internal: passed when the running exe restarts itself after an
+// update or a settings change.
 
 pub fn main() -> i32 {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -1398,10 +1472,14 @@ pub fn main() -> i32 {
     let dir = exe.parent().map(Path::to_path_buf).unwrap_or_default();
 
     // Every flag except --debug-log / --updated prints something.
-    if args.iter().any(|a| a != "--debug-log" && a != "--updated") {
+    if args
+        .iter()
+        .any(|a| a != "--debug-log" && a != "--updated" && a != "--restart")
+    {
         attach_console();
     }
-    const FLAGS: [&str; 7] = [
+    const FLAGS: [&str; 8] = [
+        "--restart",
         "--uninstall",
         "--quiet",
         "--debug-log",
@@ -1493,7 +1571,7 @@ pub fn main() -> i32 {
         return selftest(cfg, lang, &exe);
     }
     let updated = has("--updated");
-    if !single_instance(updated) {
+    if !single_instance(updated || has("--restart")) {
         let replaced = replace_other_copy(&exe) == Some(true);
         if !replaced || !single_instance(true) {
             dlog!("another instance is running: opening the dashboard and exiting");
@@ -1534,12 +1612,17 @@ pub fn main() -> i32 {
             std::env::current_exe().is_ok_and(|exe| set_autostart(&exe, on).is_ok())
         },
         autostart: autostart_enabled,
+        focus: |minutes| post_tray(WM_FOCUS, minutes.clamp(0, 600) as usize),
+        restart: || post_tray(WM_RESTART, 1),
     });
 
     let port = cfg.web_port;
     {
         let (db, cfg) = (db.clone(), cfg.clone());
-        std::thread::spawn(move || server::serve(&db, cfg, lang, Some(exe_icon_png)));
+        let config = config_path.clone();
+        std::thread::spawn(move || {
+            server::serve(&db, Some(&config), cfg, lang, Some(exe_icon_png))
+        });
     }
 
     let (tx, rx) = channel();
@@ -2029,8 +2112,11 @@ fn widget_paint(hwnd: HWND, (x, y, w, h, dpi): (i32, i32, i32, i32, u32)) {
         .unwrap_or_default();
     let (lang, paused) = tray(|t| (t.lang, t.paused)).unwrap_or((Lang::En, false));
     let line1 = short_duration(today.total);
+    let focus = crate::collector::focus_end().map(|end| end - now_unix());
     let line2 = if paused {
         menu(lang).paused_short.to_string()
+    } else if let Some(left) = focus {
+        format!("◎ {}", short_duration(left.max(60)))
     } else {
         today
             .top

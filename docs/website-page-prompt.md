@@ -4,7 +4,7 @@ Paste the whole block below into your site builder (Claude, Lovable, Framer AI, 
 
 ---
 
-Create a dedicated page for my software **Ounce** on my personal website **ef tools** (by Enzo Freminet). The page must match the existing site exactly: dark background, **Manrope** typeface, a minimal, premium look inspired by Apple product pages. Generous whitespace, large tight headlines (weight 800, negative letter-spacing), grey secondary text (#a1a1a6), very dark grey cards (#1c1c1e) with large rounded corners (24 px) and no border. One accent colour only, tangerine #FF6B1A (the colour of the logo), used sparingly. The app icon (`logo-512.png`) is a tangerine tile with a liquid-glass dandelion clock: show it as is, never recoloured. No loud gradients, no neon, no emoji in headings. All copy is in English.
+Create a dedicated page for my software **Ounce** on my personal website **ef tools** (by Enzo Freminet). The page must match the existing site exactly: dark background, **Manrope** typeface, a minimal, premium look inspired by Apple product pages. Generous whitespace, large tight headlines (weight 800, negative letter-spacing), grey secondary text (#a1a1a6), very dark grey cards (#1c1c1e) with large rounded corners (24 px) and no border. One accent only, an iridescent soap-film gradient (linear-gradient(115deg, #5EE7FF, #8F8BFF 32%, #FF6AD5 64%, #FFD36E), the colours of the logo), used sparingly: the key figures, the primary highlight, a thin underline. The app icon (`logo-512.png`) is a soap bubble on a black rounded tile: show it as is, never recoloured. Apart from that accent, no gradients, no neon, no emoji in headings. All copy is in English.
 
 ## Animations
 Smooth and understated, triggered on scroll:

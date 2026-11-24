@@ -70,9 +70,21 @@ impl Store {
         process: &str,
         project: Option<&str>,
     ) -> rusqlite::Result<i64> {
+        self.insert_kind(start, end, process, project, "active")
+    }
+
+    /// `kind`: "active" (screen time) or "render" (a 3D app computing while you are away).
+    pub fn insert_kind(
+        &self,
+        start: i64,
+        end: i64,
+        process: &str,
+        project: Option<&str>,
+        kind: &str,
+    ) -> rusqlite::Result<i64> {
         self.conn.execute(
-            "INSERT INTO sessions(start, end, process, kind, project) VALUES (?1, ?2, ?3, 'active', ?4)",
-            params![start, end, process, project],
+            "INSERT INTO sessions(start, end, process, kind, project) VALUES (?1, ?2, ?3, ?5, ?4)",
+            params![start, end, process, project, kind],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
@@ -109,11 +121,20 @@ impl Store {
 
     /// Active sessions overlapping [from, to).
     pub fn sessions_between(&self, from: i64, to: i64) -> rusqlite::Result<Vec<Session>> {
+        self.kind_between(from, to, "active")
+    }
+
+    /// Render sessions overlapping [from, to).
+    pub fn renders_between(&self, from: i64, to: i64) -> rusqlite::Result<Vec<Session>> {
+        self.kind_between(from, to, "render")
+    }
+
+    fn kind_between(&self, from: i64, to: i64, kind: &str) -> rusqlite::Result<Vec<Session>> {
         let mut st = self.conn.prepare_cached(
             "SELECT start, end, process, project FROM sessions
-             WHERE start < ?2 AND end > ?1 AND kind = 'active' AND end > start ORDER BY start",
+             WHERE start < ?2 AND end > ?1 AND kind = ?3 AND end > start ORDER BY start",
         )?;
-        let rows = st.query_map(params![from, to], |r| {
+        let rows = st.query_map(params![from, to, kind], |r| {
             Ok(Session {
                 start: r.get(0)?,
                 end: r.get(1)?,

@@ -47,12 +47,15 @@ pub struct ProjectTime {
     /// so 01:00 is 90000).
     pub earliest: i64,
     pub latest: i64,
+    /// Scene files grouped into this project ("robot_v01.mb", "robot_v02.mb"...).
+    pub versions: u32,
 }
 
 /// Per-project details gathered while scanning the sessions.
 #[derive(Default)]
 struct ProjectStat {
     days: std::collections::HashSet<i64>,
+    versions: std::collections::HashSet<String>,
     sessions: u32,
     longest: i64,
     run: Option<(i64, i64)>,
@@ -203,7 +206,11 @@ pub fn analyze(
             .or_default()
             .entry(&s.process)
             .or_default() += b - a;
-        if let Some(p) = &s.project {
+        if let Some(file) = &s.project {
+            let grouped = cfg
+                .group_versions
+                .then(|| crate::project::project_group(file));
+            let p = grouped.as_ref().unwrap_or(file);
             *projects
                 .entry(p.clone())
                 .or_default()
@@ -211,6 +218,9 @@ pub fn analyze(
                 .or_default() += b - a;
             project_app.insert(p.clone(), name.clone());
             let st = project_stats.entry(p.clone()).or_default();
+            if !st.versions.contains(file) {
+                st.versions.insert(file.clone());
+            }
             st.run = match st.run {
                 Some((rs, re)) if a - re < SEGMENT_JOIN => Some((rs, b.max(re))),
                 _ => {
@@ -351,6 +361,7 @@ pub fn analyze(
                     peak_hour,
                     first: st.first,
                     last: st.last,
+                    versions: st.versions.len() as u32,
                 }
             })
             .collect(),
@@ -862,10 +873,11 @@ mod tests {
         let mut cfg = Config::default();
         cfg.app_limits.insert("chrome".into(), 20);
         let mut s = sample();
-        s[0].project = Some("robot.mb".into());
-        s[1].project = Some("robot.mb".into());
+        s[0].project = Some("robot_v01.mb".into());
+        s[1].project = Some("robot_v02.mb".into());
         let d = summarize(&s, "today", at(0, 20), OFF, &cfg);
         assert_eq!(d.projects.len(), 1);
+        assert_eq!(d.projects[0].versions, 2);
         assert_eq!(
             (d.projects[0].name.as_str(), d.projects[0].app.as_str()),
             ("robot.mb", "Maya")

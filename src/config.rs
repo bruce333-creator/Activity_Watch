@@ -33,6 +33,13 @@ language = "en"
 # A streak day needs at least this many minutes in your focus apps.
 streak_minutes = 30
 
+# Versions of a scene count as one project: robot_v01.mb, robot_v02.mb -> robot.mb.
+group_versions = true
+
+# Render time: while you are away, time when a 3D app (Maya, Blender, Houdini...) keeps
+# the processor busy is counted as render time for its scene, apart from screen time.
+render_time = false
+
 # Apps that are never recorded.
 ignored_apps = ["lockapp.exe"]
 
@@ -64,6 +71,37 @@ const DEFAULT_FOCUS_APPS: &[&str] = &[
     "Premiere Pro",
     "Unreal Engine",
     "RenderMan",
+];
+
+/// Processes whose work while you are away counts as render time (option `render_time`).
+pub const RENDER_PROCESSES: &[&str] = &[
+    "maya.exe",
+    "mayabatch.exe",
+    "mayapy.exe",
+    "render.exe",
+    "blender.exe",
+    "houdini.exe",
+    "houdinifx.exe",
+    "hython.exe",
+    "husk.exe",
+    "mantra.exe",
+    "kick.exe",
+    "prman.exe",
+    "afterfx.exe",
+    "aerender.exe",
+    "adobe media encoder.exe",
+    "adobe premiere pro.exe",
+    "nuke.exe",
+    "cinema 4d.exe",
+    "commandline.exe",
+    "3dsmax.exe",
+    "3dsmaxcmd.exe",
+    "vray.exe",
+    "redshiftcmdline.exe",
+    "unrealeditor.exe",
+    "substance painter.exe",
+    "adobe substance 3d painter.exe",
+    "zbrush.exe",
 ];
 
 /// Built-in display names. Processes sharing a name are merged in the dashboard.
@@ -117,6 +155,8 @@ pub struct Config {
     pub ignored_apps: Vec<String>,
     pub web_port: u16,
     pub check_updates: bool,
+    pub group_versions: bool,
+    pub render_time: bool,
     pub app_limits: HashMap<String, u64>,
     pub friendly_names: HashMap<String, String>,
     /// Names chosen in the dashboard (original name -> new name), loaded from the database.
@@ -224,11 +264,50 @@ impl Config {
             ignored_apps: Vec::new(),
             web_port: 8765,
             check_updates: true,
+            group_versions: true,
+            render_time: false,
             app_limits: HashMap::new(),
             friendly_names: HashMap::new(),
             renames: HashMap::new(),
         }
     }
+}
+
+/// Sets top-level keys in a config.toml text, keeping its comments. A commented-out or
+/// missing key is added. `values` are TOML literals ("true", "8.5", "\"fr\"").
+pub fn set_values(text: &str, values: &[(&str, String)]) -> String {
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+    for (key, value) in values {
+        let line = format!("{key} = {value}");
+        let is_key = |l: &str, commented: bool| {
+            let l = l.trim_start();
+            let l = if commented {
+                l.trim_start_matches('#').trim_start()
+            } else {
+                l
+            };
+            l.strip_prefix(key)
+                .is_some_and(|rest| rest.trim_start().starts_with('='))
+        };
+        // Only before the first [table]: keys after it belong to that table.
+        let end = lines
+            .iter()
+            .position(|l| l.trim_start().starts_with('['))
+            .unwrap_or(lines.len());
+        if let Some(i) = (0..end).find(|&i| is_key(&lines[i], false)) {
+            lines[i] = line;
+        } else if let Some(i) = (0..end).find(|&i| is_key(&lines[i], true)) {
+            lines[i] = line;
+        } else {
+            lines.insert(end, line);
+            if end < lines.len() - 1 {
+                lines.insert(end + 1, String::new());
+            }
+        }
+    }
+    let mut out = lines.join("\n");
+    out.push('\n');
+    out
 }
 
 #[cfg(test)]
@@ -287,6 +366,27 @@ mod tests {
         assert_eq!(c.friendly("mayabatch.exe"), "Maya 2025");
         assert_eq!(c.original_name("maya.exe"), "Maya");
         assert_eq!(c.friendly("chrome.exe"), "Chrome");
+    }
+
+    #[test]
+    fn settings_are_written_back() {
+        let text = set_values(
+            DEFAULT_CONFIG,
+            &[
+                ("language", "\"fr\"".into()),
+                ("daily_goal_hours", "6.5".into()),
+                ("render_time", "true".into()),
+                ("focus_apps", "[\"Maya\"]".into()),
+                ("brand_new", "1".into()),
+            ],
+        );
+        let c = Config::parse(&text).unwrap();
+        assert_eq!(c.language, "fr");
+        assert_eq!(c.goal_secs(), 6 * 3600 + 1800);
+        assert!(c.render_time);
+        assert_eq!(c.focus_apps, ["Maya"]);
+        assert!(text.contains("# Interface language"), "comments kept");
+        assert!(text.find("brand_new").unwrap() < text.find("[app_limits]").unwrap());
     }
 
     #[test]

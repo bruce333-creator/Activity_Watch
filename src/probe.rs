@@ -21,6 +21,11 @@ pub trait SystemProbe {
     fn working_set_bytes(&mut self) -> u64 {
         0
     }
+    /// Processor time used so far (seconds, all cores) by the running processes with these
+    /// exe names, summed per name. Used to detect renders.
+    fn cpu_seconds(&mut self, _names: &[&str]) -> std::collections::HashMap<String, f64> {
+        Default::default()
+    }
 }
 
 /// Scriptable probe for unit tests.
@@ -31,6 +36,7 @@ pub struct FakeProbe {
     pub title: String,
     pub idle: u64,
     pub locked: bool,
+    pub cpu: std::collections::HashMap<String, f64>,
 }
 
 #[cfg(test)]
@@ -47,5 +53,8 @@ impl SystemProbe for FakeProbe {
     }
     fn is_session_locked(&mut self) -> bool {
         self.locked
+    }
+    fn cpu_seconds(&mut self, _names: &[&str]) -> std::collections::HashMap<String, f64> {
+        self.cpu.clone()
     }
 }

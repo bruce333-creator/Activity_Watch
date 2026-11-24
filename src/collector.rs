@@ -25,11 +25,24 @@ pub static TODAY: Mutex<Today> = Mutex::new(Today {
     top: None,
 });
 
+/// End of the running focus session (unix seconds), for the widget and the dashboard.
+pub static FOCUS_END: Mutex<Option<i64>> = Mutex::new(None);
+
+pub fn focus_end() -> Option<i64> {
+    FOCUS_END.lock().ok().and_then(|f| *f)
+}
+
 /// Open sessions are written to disk at least this often (max data loss on crash).
 pub const FLUSH_SECS: i64 = 60;
+/// While you are away, render detection samples processor use this often.
+const RENDER_EVERY: i64 = 30;
+/// A render keeps at least one core busy.
+const RENDER_CORES: f64 = 1.0;
 
 pub enum Cmd {
     Pause(bool),
+    /// Starts a focus session of this many minutes (0 stops it).
+    Focus(i64),
     Quit,
 }
 
@@ -67,6 +80,12 @@ pub struct Collector<P: SystemProbe> {
     notified: HashSet<String>,
     goal_notified: bool,
     wrapped_week: i64,
+    /// Focus session (start, end): break reminders and limits wait until it ends.
+    focus: Option<(i64, i64)>,
+    // Render detection: open render row, processor time per process at the last sample.
+    render: Option<Open>,
+    render_cpu: HashMap<String, f64>,
+    render_sample: i64,
 }
 
 impl<P: SystemProbe> Collector<P> {
@@ -92,7 +111,92 @@ impl<P: SystemProbe> Collector<P> {
             notified: HashSet::new(),
             goal_notified: false,
             wrapped_week: i64::MIN,
+            focus: None,
+            render: None,
+            render_cpu: HashMap::new(),
+            render_sample: 0,
         }
+    }
+
+    /// Starts (minutes > 0) or stops a focus session.
+    pub fn set_focus(&mut self, now: i64, minutes: i64) {
+        self.focus = (minutes > 0).then_some((now, now + minutes * 60));
+        if let Ok(mut f) = FOCUS_END.lock() {
+            *f = self.focus.map(|(_, end)| end);
+        }
+        dlog!("focus: {minutes} min");
+    }
+
+    fn check_focus(&mut self, now: i64) {
+        if let Some((start, end)) = self.focus {
+            if now >= end {
+                self.set_focus(now, 0);
+                if self.cfg.notifications {
+                    self.emit(Notice::FocusDone {
+                        minutes: (end - start) / 60,
+                    });
+                }
+            }
+        }
+    }
+
+    /// While you are away: is a 3D app still computing (a render)? Samples every RENDER_EVERY s.
+    fn check_render(&mut self, now: i64, away: bool) -> rusqlite::Result<()> {
+        if !away || !self.cfg.render_time || self.paused {
+            self.close_render(now)?;
+            self.render_cpu.clear();
+            return Ok(());
+        }
+        if now - self.render_sample < RENDER_EVERY {
+            return Ok(());
+        }
+        let cpu = self.probe.cpu_seconds(crate::config::RENDER_PROCESSES);
+        let elapsed = (now - self.render_sample) as f64;
+        let busiest = cpu
+            .iter()
+            .filter_map(|(name, secs)| Some((name, secs - self.render_cpu.get(name)?)))
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .filter(|(_, used)| *used / elapsed >= RENDER_CORES)
+            .map(|(name, _)| name.clone());
+        let since = self.render_sample;
+        self.render_cpu = cpu;
+        self.render_sample = now;
+        match busiest {
+            Some(process) if self.render.as_ref().is_some_and(|r| r.process == process) => {}
+            Some(process) => {
+                self.close_render(since)?;
+                // The scene last seen in that app (any of its processes).
+                let app = self.cfg.friendly(&process);
+                let project = self
+                    .projects
+                    .iter()
+                    .find(|(p, _)| self.cfg.friendly(p) == app)
+                    .map(|(_, scene)| scene.clone());
+                let id =
+                    self.store
+                        .insert_kind(since, now, &process, project.as_deref(), "render")?;
+                dlog!("render start {process}");
+                self.render = Some(Open {
+                    id,
+                    process,
+                    project,
+                    start: since,
+                });
+            }
+            None => self.close_render(since)?,
+        }
+        if let Some(r) = &self.render {
+            self.store.set_end(r.id, now)?;
+        }
+        Ok(())
+    }
+
+    fn close_render(&mut self, end: i64) -> rusqlite::Result<()> {
+        if let Some(r) = self.render.take() {
+            self.store.set_end(r.id, end.max(r.start))?;
+            dlog!("render end {} ({}s)", r.process, end - r.start);
+        }
+        Ok(())
     }
 
     fn max_gap(&self) -> i64 {
@@ -141,7 +245,9 @@ impl<P: SystemProbe> Collector<P> {
         self.last_tick = Some(now);
         self.new_day_check(now)?;
 
+        self.check_focus(now);
         let (desired, idle) = self.observe(now);
+        self.check_render(now, idle.is_some() && !resumed)?;
         let same = match (&self.open, &desired) {
             (Some(o), Some((p, _, proj))) => o.process == *p && o.project == *proj,
             (None, None) => true,
@@ -218,7 +324,7 @@ impl<P: SystemProbe> Collector<P> {
     }
 
     fn check_notices(&mut self, now: i64) -> rusqlite::Result<()> {
-        if self.cfg.notifications {
+        if self.cfg.notifications && self.focus.is_none() {
             if now >= self.next_break_notice {
                 let minutes = (now - self.stretch_start.unwrap_or(now)) / 60;
                 self.next_break_notice = now + self.cfg.break_reminder_minutes.max(1) as i64 * 60;
@@ -335,6 +441,7 @@ impl<P: SystemProbe> Collector<P> {
             Some(last) if now - last > self.max_gap() => last,
             _ => now,
         };
+        self.close_render(end)?;
         self.close(end)
     }
 
@@ -356,6 +463,7 @@ pub fn run<P: SystemProbe>(mut c: Collector<P>, rx: Receiver<Cmd>) {
                 c.paused = p;
                 dlog!("tracking {}", if p { "paused" } else { "resumed" });
             }
+            Ok(Cmd::Focus(minutes)) => c.set_focus(now_unix(), minutes),
             Ok(Cmd::Quit) | Err(RecvTimeoutError::Disconnected) => break,
             Err(RecvTimeoutError::Timeout) => {}
         }
@@ -574,6 +682,57 @@ mod tests {
         );
         run_ticks(&mut c, 7710, 7840);
         assert_eq!(seen.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn focus_holds_reminders_and_ends_with_a_notice() {
+        let mut c = collector();
+        let seen = notices(&mut c);
+        c.probe.foreground = Some("maya.exe".into());
+        c.set_focus(0, 90);
+        run_ticks(&mut c, 0, 3700);
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "no break reminder while focusing"
+        );
+        run_ticks(&mut c, 3700, 90 * 60 + 4);
+        assert_eq!(
+            seen.lock().unwrap().first(),
+            Some(&Notice::FocusDone { minutes: 90 })
+        );
+        assert_eq!(focus_end(), None);
+    }
+
+    #[test]
+    fn render_time_while_away() {
+        let mut c = collector();
+        c.cfg.render_time = true;
+        c.probe.foreground = Some("maya.exe".into());
+        c.probe.title = "Autodesk Maya 2025: C:\\p\\robot_v03.mb".into();
+        run_ticks(&mut c, 0, 60);
+        // Away from 60 (idle from 240): Maya keeps 6 cores busy until 900, then goes quiet.
+        let mut cpu = 0.0;
+        for t in (60..1600).step_by(2) {
+            c.probe.idle = (t - 60) as u64;
+            if t < 900 {
+                cpu += 12.0;
+            }
+            c.probe.cpu.insert("maya.exe".into(), cpu);
+            c.tick(t).unwrap();
+        }
+        let r = c.store.renders_between(0, 2000).unwrap();
+        assert_eq!(r.len(), 1);
+        assert_eq!(r[0].project.as_deref(), Some("robot_v03.mb"));
+        let secs = r[0].end - r[0].start;
+        assert!((600..=700).contains(&secs), "{secs}");
+        // Screen time is not changed by it.
+        assert_eq!(c.store.sessions_between(0, 2000).unwrap().len(), 1);
+        // Off by default.
+        let mut d = collector();
+        d.probe.cpu.insert("maya.exe".into(), 1e9);
+        d.probe.idle = 1000;
+        run_ticks(&mut d, 0, 200);
+        assert!(d.store.renders_between(0, 2000).unwrap().is_empty());
     }
 
     #[test]

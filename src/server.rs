@@ -24,8 +24,38 @@ pub fn summary_json(store: &Store, cfg: &Config, range: &str, now: i64) -> Strin
     let offset = store.local_offset();
     let (from, to) = summary_span(range, now, offset);
     let sessions = store.sessions_between(from, to).unwrap_or_default();
-    serde_json::to_string(&summarize(&sessions, range, now, offset, cfg))
-        .unwrap_or_else(|_| "{}".into())
+    let mut v =
+        serde_json::to_value(summarize(&sessions, range, now, offset, cfg)).unwrap_or_default();
+    // Render time (option): apart from screen time, per project.
+    let mut render = 0;
+    let mut by_project: HashMap<String, i64> = HashMap::new();
+    for r in store.renders_between(from, to.min(now)).unwrap_or_default() {
+        let secs = r.end.min(to) - r.start.max(from);
+        render += secs;
+        if let Some(p) = r.project {
+            let p = if cfg.group_versions {
+                crate::project::project_group(&p)
+            } else {
+                p
+            };
+            *by_project.entry(p).or_default() += secs;
+        }
+    }
+    v["render"] = render.into();
+    if let Some(list) = v["projects"].as_array_mut() {
+        for p in list {
+            let secs = p["name"].as_str().and_then(|n| by_project.get(n)).copied();
+            p["render"] = secs.unwrap_or(0).into();
+        }
+    }
+    v.to_string()
+}
+
+fn read_json(req: &mut tiny_http::Request, limit: u64) -> serde_json::Value {
+    let mut body = String::new();
+    let _ =
+        std::io::Read::read_to_string(&mut std::io::Read::take(req.as_reader(), limit), &mut body);
+    serde_json::from_str(&body).unwrap_or_default()
 }
 
 /// JSON body for /api/wrapped?weeks_ago=N (0 = current week, 1 = last week...).
@@ -171,7 +201,14 @@ fn is_trusted_write(req: &tiny_http::Request, port: u16) -> bool {
 }
 
 /// Serves forever on the calling thread.
-pub fn serve(db_path: &Path, mut cfg: Config, lang: Lang, icon: Option<IconFn>) {
+/// `config_path`: the config.toml the first-start setup writes to (None: read-only preview).
+pub fn serve(
+    db_path: &Path,
+    config_path: Option<&Path>,
+    mut cfg: Config,
+    lang: Lang,
+    icon: Option<IconFn>,
+) {
     let addr = format!("127.0.0.1:{}", cfg.web_port);
     let server = match Server::http(&addr) {
         Ok(s) => s,
@@ -249,6 +286,11 @@ pub fn serve(db_path: &Path, mut cfg: Config, lang: Lang, icon: Option<IconFn>) 
                     "onboarding": crate::hooks::get().is_some() && store.meta("onboarded").is_none(),
                     "widget": store.meta("widget").as_deref() == Some("1"),
                     "autostart": crate::hooks::get().is_some_and(|h| (h.autostart)()),
+                    "focus_end": crate::collector::focus_end(),
+                    "notifications": cfg.notifications,
+                    "check_updates": cfg.check_updates,
+                    "render_time": cfg.render_time,
+                    "group_versions": cfg.group_versions,
                 });
                 req.respond(
                     Response::from_string(body.to_string()).with_header(header("application/json")),
@@ -286,24 +328,64 @@ pub fn serve(db_path: &Path, mut cfg: Config, lang: Lang, icon: Option<IconFn>) 
                 Response::from_string(apps_json(&store, &cfg))
                     .with_header(header("application/json")),
             ),
+            "/api/focus" if method == tiny_http::Method::Post => {
+                let v = read_json(&mut req, 256);
+                let minutes = v["minutes"].as_i64().unwrap_or(0).clamp(0, 600);
+                let ok = crate::hooks::get().map(|h| (h.focus)(minutes)).is_some();
+                req.respond(
+                    Response::from_string(if ok { "ok" } else { "unavailable" })
+                        .with_status_code(if ok { 200 } else { 404 }),
+                )
+            }
+            // First-start setup: language, goal, reminders, options; then a restart applies it.
             "/api/onboarding" if method == tiny_http::Method::Post => {
-                let mut body = String::new();
-                let _ = std::io::Read::read_to_string(
-                    &mut std::io::Read::take(req.as_reader(), 1024),
-                    &mut body,
-                );
-                let v: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
-                let widget = v["widget"].as_bool().unwrap_or(false);
-                let autostart = v["autostart"].as_bool();
-                let _ = store.set_meta("onboarded", "1");
-                if let Some(h) = crate::hooks::get() {
-                    (h.set_widget)(widget);
-                    if let Some(on) = autostart {
-                        (h.set_autostart)(on);
+                let v = read_json(&mut req, 2048);
+                let mut values: Vec<(&str, String)> = Vec::new();
+                if let Some(l) = v["lang"].as_str().filter(|l| ["en", "fr"].contains(l)) {
+                    values.push(("language", format!("\"{l}\"")));
+                }
+                if let Some(h) = v["goal_hours"]
+                    .as_f64()
+                    .filter(|h| (0.0..=24.0).contains(h))
+                {
+                    values.push(("daily_goal_hours", format!("{h:.1}")));
+                }
+                if let Some(m) = v["break_reminder_minutes"].as_u64().filter(|m| *m <= 600) {
+                    values.push(("break_reminder_minutes", m.to_string()));
+                }
+                for key in [
+                    "render_time",
+                    "check_updates",
+                    "notifications",
+                    "group_versions",
+                ] {
+                    if let Some(b) = v[key].as_bool() {
+                        values.push((key, b.to_string()));
                     }
                 }
-                dlog!("onboarding: widget {widget}, autostart {autostart:?}");
-                req.respond(Response::from_string("ok"))
+                let _ = store.set_meta("onboarded", "1");
+                let mut restart = false;
+                if let (Some(path), false) = (config_path, values.is_empty()) {
+                    let text = std::fs::read_to_string(path)
+                        .unwrap_or_else(|_| crate::config::DEFAULT_CONFIG.to_string());
+                    let new = crate::config::set_values(&text, &values);
+                    restart = new != text && std::fs::write(path, &new).is_ok();
+                }
+                if let Some(h) = crate::hooks::get() {
+                    (h.set_widget)(v["widget"].as_bool().unwrap_or(false));
+                    if let Some(on) = v["autostart"].as_bool() {
+                        (h.set_autostart)(on);
+                    }
+                    if restart {
+                        (h.restart)();
+                    }
+                }
+                dlog!("setup: {values:?}, restart {restart}");
+                req.respond(Response::from_string(if restart {
+                    "restart"
+                } else {
+                    "ok"
+                }))
             }
             "/api/apps/rename" if method == tiny_http::Method::Post => {
                 let mut body = String::new();

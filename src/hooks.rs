@@ -9,6 +9,10 @@ pub struct Hooks {
     /// Turns "run at Windows startup" on or off; false if it failed.
     pub set_autostart: fn(bool) -> bool,
     pub autostart: fn() -> bool,
+    /// Starts a focus session of this many minutes (0 stops it).
+    pub focus: fn(i64),
+    /// Restarts Ounce (after the settings changed).
+    pub restart: fn(),
 }
 
 static HOOKS: OnceLock<Hooks> = OnceLock::new();

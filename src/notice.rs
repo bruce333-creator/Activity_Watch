@@ -28,6 +28,8 @@ impl Lang {
 pub enum Notice {
     /// No break for this many minutes.
     Break { minutes: i64 },
+    /// A focus session is over.
+    FocusDone { minutes: i64 },
     /// Daily limit of an app reached.
     AppLimit { app: String, minutes: i64 },
     /// Daily screen-time goal reached.
@@ -93,6 +95,14 @@ impl Notice {
                     dur(lang, *minutes)
                 ),
             ),
+            (Notice::FocusDone { minutes }, Fr) => (
+                format!("Concentration terminée : {minutes} min 🎯"),
+                "Bravo. Lève-toi, étire-toi, regarde au loin quelques minutes.".into(),
+            ),
+            (Notice::FocusDone { minutes }, En) => (
+                format!("Focus done: {minutes} min 🎯"),
+                "Well done. Stand up, stretch and look into the distance for a few minutes.".into(),
+            ),
             (Notice::Wrapped, Fr) => (
                 "Ton Wrapped est prêt ✨".into(),
                 "Découvre le bilan de ta semaine.".into(),
@@ -150,6 +160,8 @@ pub struct Menu {
     pub widget: &'static str,
     pub widget_hide: &'static str,
     pub paused_short: &'static str,
+    pub focus: &'static str,
+    pub focus_stop: &'static str,
     /// "Install update {version}"
     pub update: &'static str,
     pub paused_tip: &'static str,
@@ -168,6 +180,8 @@ pub fn menu(lang: Lang) -> Menu {
             widget: "Afficher dans la barre des tâches",
             widget_hide: "Masquer de la barre des tâches",
             paused_short: "En pause",
+            focus: "Concentration {} min",
+            focus_stop: "Arrêter la concentration",
             update: "Installer la mise à jour {}",
             paused_tip: "Ounce (en pause)",
         },
@@ -182,6 +196,8 @@ pub fn menu(lang: Lang) -> Menu {
             widget: "Show on the taskbar",
             widget_hide: "Hide from the taskbar",
             paused_short: "Paused",
+            focus: "Focus {} min",
+            focus_stop: "Stop focus",
             update: "Install update {}",
             paused_tip: "Ounce (paused)",
         },
@@ -212,6 +228,7 @@ mod tests {
                 },
                 Notice::Goal { minutes: 480 },
                 Notice::Wrapped,
+                Notice::FocusDone { minutes: 50 },
                 Notice::Update {
                     version: "10.10.10".into(),
                 },
