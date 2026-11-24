@@ -41,6 +41,12 @@ pub struct ProjectTime {
     pub peak_hour: u8,
     pub first: i64,
     pub last: i64,
+    /// Real breaks (idle gaps of at least `break_minutes`) within the project's working days.
+    pub breaks: u32,
+    /// Earliest start and latest end, as time of day in seconds (days run 05:00 to 05:00,
+    /// so 01:00 is 90000).
+    pub earliest: i64,
+    pub latest: i64,
 }
 
 /// Per-project details gathered while scanning the sessions.
@@ -53,6 +59,10 @@ struct ProjectStat {
     hours: [i64; 24],
     first: i64,
     last: i64,
+    /// Wake day -> (first start, last end) that day.
+    spans: HashMap<i64, (i64, i64)>,
+    earliest: i64,
+    latest: i64,
 }
 
 #[derive(Serialize, Debug, Clone)]
@@ -213,6 +223,14 @@ pub fn analyze(
             }
             st.first = if st.first == 0 { a } else { st.first.min(a) };
             st.last = st.last.max(b);
+            let span = st.spans.entry(wake_day(a, offset)).or_insert((a, b));
+            *span = (span.0.min(a), span.1.max(b));
+            st.earliest = if st.earliest == 0 {
+                tod(a, offset)
+            } else {
+                st.earliest.min(tod(a, offset))
+            };
+            st.latest = st.latest.max(tod(b, offset));
             for_each_hour(a, b, offset, |x, y, h, day| {
                 st.hours[h] += y - x;
                 st.days.insert(day);
@@ -270,6 +288,12 @@ pub fn analyze(
             (focus.switches as f64 * 3600.0 / total as f64 * 10.0).round() / 10.0;
     }
 
+    // Idle gaps between two stretches of the same day are breaks.
+    let gaps: Vec<(i64, i64)> = stretches
+        .windows(2)
+        .filter(|w| wake_day(w[0].1, offset) == wake_day(w[1].0, offset))
+        .map(|w| (w[0].1, w[1].0))
+        .collect();
     for (i, &(a, b)) in stretches.iter().enumerate() {
         w.longest_stretch = w.longest_stretch.max(b - a);
         w.first_start = Some(
@@ -305,8 +329,19 @@ pub fn analyze(
             .map(|(name, process, seconds)| {
                 let st = project_stats.remove(&name).unwrap_or_default();
                 let peak_hour = (0..24).max_by_key(|&h| (st.hours[h], 24 - h)).unwrap_or(0) as u8;
+                let breaks = gaps
+                    .iter()
+                    .filter(|(ga, gb)| {
+                        st.spans
+                            .get(&wake_day(*ga, offset))
+                            .is_some_and(|(s0, s1)| s0 <= ga && gb <= s1)
+                    })
+                    .count() as u32;
                 ProjectTime {
                     app: project_app[&name].clone(),
+                    breaks,
+                    earliest: st.earliest,
+                    latest: st.latest,
                     name,
                     process,
                     seconds,
@@ -802,6 +837,27 @@ mod tests {
     }
 
     #[test]
+    fn project_breaks_and_hours() {
+        let p = |a, b, proc: &str| {
+            let mut x = sess(a, b, proc);
+            x.project = Some("robot.mb".into());
+            x
+        };
+        let s = vec![
+            p(at(0, 9), at(0, 10), "maya.exe"),
+            // 30 min away from the PC: a break inside the project's day.
+            p(at(0, 10) + min(30), at(0, 11), "maya.exe"),
+            sess(at(0, 11), at(0, 12), "chrome.exe"),
+            // 2 h away, then a late session: also inside the project's day.
+            p(at(0, 14), at(0, 23) + min(30), "maya.exe"),
+        ];
+        let d = summarize(&s, "today", at(0, 23) + min(40), OFF, &Config::default());
+        let pr = &d.projects[0];
+        assert_eq!((pr.sessions, pr.breaks), (3, 2));
+        assert_eq!((pr.earliest, pr.latest), (9 * 3600, 23 * 3600 + min(30)));
+    }
+
+    #[test]
     fn projects_and_limits() {
         let mut cfg = Config::default();
         cfg.app_limits.insert("chrome".into(), 20);
@@ -820,6 +876,10 @@ mod tests {
         assert_eq!((p.sessions, p.longest, p.days), (1, 2 * 3600 + min(30), 1));
         assert_eq!((p.first, p.last), (at(0, 9), at(0, 11) + min(30)));
         assert_eq!(p.peak_hour, 9);
+        assert_eq!(
+            (p.breaks, p.earliest, p.latest),
+            (0, 9 * 3600, 11 * 3600 + min(30))
+        );
         assert_eq!(d.limits.len(), 1);
         assert_eq!((d.limits[0].limit, d.limits[0].seconds), (min(20), min(30)));
     }

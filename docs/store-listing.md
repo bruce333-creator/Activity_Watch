@@ -37,7 +37,7 @@ Private by design: your data never leaves your computer. No account, no telemetr
 
 **Category**: Productivity
 
-**Privacy policy URL**: https://github.com/bruce333-creator/Activity_Watch#privacy
+**Privacy policy URL**: https://github.com/bruce333-creator/ounce#privacy
 
 **Website**: your ef tools page
 

@@ -4,7 +4,7 @@ Paste the whole block below into your site builder (Claude, Lovable, Framer AI, 
 
 ---
 
-Create a dedicated page for my software **Ounce** on my personal website **ef tools** (by Enzo Freminet). The page must match the existing site exactly: dark background, **Manrope** typeface, a minimal, premium look inspired by Apple product pages. Generous whitespace, large tight headlines (weight 800, negative letter-spacing), grey secondary text (#a1a1a6), very dark grey cards (#1c1c1e) with large rounded corners (24 px) and no border. One accent colour only, blue #0a84ff, used sparingly. No loud gradients, no neon, no emoji in headings. All copy is in English.
+Create a dedicated page for my software **Ounce** on my personal website **ef tools** (by Enzo Freminet). The page must match the existing site exactly: dark background, **Manrope** typeface, a minimal, premium look inspired by Apple product pages. Generous whitespace, large tight headlines (weight 800, negative letter-spacing), grey secondary text (#a1a1a6), very dark grey cards (#1c1c1e) with large rounded corners (24 px) and no border. One accent colour only, tangerine #FF6B1A (the colour of the logo), used sparingly. No loud gradients, no neon, no emoji in headings. All copy is in English.
 
 ## Animations
 Smooth and understated, triggered on scroll:
@@ -31,8 +31,8 @@ Show the screenshots inside a sober window frame (dark grey title bar with three
 - Eyebrow: "Ounce · for Windows 10/11"
 - Headline: "Screen time that weighs an ounce."
 - Subheadline: "A 2 MB screen-time tracker for Windows. Featherweight, private, built for 3D artists."
-- Primary white button: "Download for free" → `https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/ounce.exe`
-- Secondary link: "View source code" → `https://github.com/bruce333-creator/Activity_Watch`
+- Primary white button: "Download for free" → `https://github.com/bruce333-creator/ounce/releases/latest/download/ounce.exe`
+- Secondary link: "View source code" → `https://github.com/bruce333-creator/ounce`
 - Small grey line under the button: "Free · ~2 MB · Windows 10 and 11"
 - Then `capture-today.png`, large, in the window frame.
 
@@ -42,7 +42,7 @@ Show the screenshots inside a sober window frame (dark grey title bar with three
 - **Time per project**: "Maya, Blender, Houdini, Photoshop… Time spent on each scene is detected automatically."
 - **Wellbeing**: "Break reminders, a daily goal and per-app limits, as Windows notifications."
 - **Your year**: "A calendar where every day is a square, with your creative streaks and records."
-- **Make it yours**: "Rename your apps and change their logos. CSV export included."
+- **Share a project**: "Turn one project into an image: time, days, sessions, breaks, earliest start and latest finish. Minimal, receipt or arcade style."
 
 **3. Wrapped section**: text on the left, `wrapped-share.png` on the right, slightly tilted (rotate -3°), straightening on hover.
 - Headline: "Your week, told."

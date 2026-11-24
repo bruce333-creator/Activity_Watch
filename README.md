@@ -23,7 +23,7 @@ Measurements come from the Windows machine that builds each release (see the *Se
 
 ## Download
 
-**[Download the latest version](https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/ounce.exe)** (or see [all releases](https://github.com/bruce333-creator/Activity_Watch/releases)).
+**[Download the latest version](https://github.com/bruce333-creator/ounce/releases/latest/download/ounce.exe)** (or see [all releases](https://github.com/bruce333-creator/ounce/releases)).
 
 Put the exe in a folder of your own, e.g. `C:\Tools\Ounce\` (a `config.toml` is created next to it on first launch), then double-click it.
 
@@ -109,15 +109,15 @@ Native Windows notifications, turned off with `notifications = false`:
 - **Wrapped ready** on the first use of a new week; a click opens it. With `wrapped_auto_open = true` it opens directly.
 - **Update available**, once per new version; a click installs it.
 
-### Project images
+### Share a project
 
-In *Today*, *Week* or *Month*, the **Export image** button of the *Projects* card turns your project time into a 1080×1350 picture, in several styles:
+Hover a project in the *Projects* list (*Today*, *Week*, *Month* or the Wrapped) and click **↗** to turn that project into a 1080×1350 picture, in several styles:
 
 - **Minimal**: clean, Apple-like;
-- **Receipt**: your time itemized on a till receipt, with a barcode;
-- **Arcade**: a high-score table with levels, XP and combos.
+- **Receipt**: the project itemized on a till receipt, with a barcode;
+- **Arcade**: a "level complete" screen.
 
-Each one shows the total time on projects, the share of screen time, and for every project: time, app, sessions and active days; plus the longest session, number of sessions, active days, average session and peak hour. More styles will come: a style is one drawing function added to `THEMES` in `assets/dashboard.html`.
+Each one shows the time on the project and how it was spread: over how many days (and how many of them you actually worked on it), the number of sessions, the breaks you took during those working days, the longest session, and the earliest start and latest finish. More styles will come: a style is one drawing function added to `THEMES` in `assets/dashboard.html`.
 
 ### Time per project (3D artists)
 
@@ -240,7 +240,7 @@ Rules:
 - the attached exe must keep the name `ounce.exe`;
 - a Release marked "pre-release" or draft is not offered: handy to test before shipping.
 
-**Permanent download link** (always the latest version, for a website): `https://github.com/bruce333-creator/Activity_Watch/releases/latest/download/ounce.exe`.
+**Permanent download link** (always the latest version, for a website): `https://github.com/bruce333-creator/ounce/releases/latest/download/ounce.exe`.
 
 ### SmartScreen and antivirus
 
@@ -260,7 +260,7 @@ Every build produces `ounce.msix` (artifact **ounce-store** of the GitHub Action
 1. Create a developer account at https://storedeveloper.microsoft.com (free for individuals) and open **Partner Center → Apps and games → New product → MSIX or PWA app**. Reserve the name "Ounce" (or another if taken).
 2. **Product identity** (Product management): copy *Package/Identity/Name*, *Package/Identity/Publisher* and *Package/Properties/PublisherDisplayName* into the repository variables (GitHub → Settings → Secrets and variables → Actions → **Variables**): `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER`, `MSIX_PUBLISHER_DISPLAY_NAME`.
 3. Run the workflow again (Actions → build → Run workflow) and download the **ounce-store** artifact.
-4. Submission: upload `ounce.msix` in **Packages**, fill **Store listing** with `docs/store-listing.md` and the images of `docs/press/`, **Properties**: category *Productivity*, privacy policy URL `https://github.com/bruce333-creator/Activity_Watch#privacy`. Pricing: free. In the *Submission options*, the restricted capability `runFullTrust` needs a sentence: "Desktop app: reads the foreground window to measure screen time; shows a tray icon."
+4. Submission: upload `ounce.msix` in **Packages**, fill **Store listing** with `docs/store-listing.md` and the images of `docs/press/`, **Properties**: category *Productivity*, privacy policy URL `https://github.com/bruce333-creator/ounce#privacy`. Pricing: free. In the *Submission options*, the restricted capability `runFullTrust` needs a sentence: "Desktop app: reads the foreground window to measure screen time; shows a tray icon."
 5. Certification usually takes a few days. Each new version: bump `Cargo.toml`, run the workflow, upload the new `.msix` in a new submission.
 
 The Store version behaves like the exe, except:

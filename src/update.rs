@@ -4,7 +4,7 @@
 use std::sync::{Mutex, OnceLock};
 
 /// Public GitHub repository whose Releases carry the exe (built by .github/workflows/build.yml).
-pub const REPO: &str = "bruce333-creator/Activity_Watch";
+pub const REPO: &str = "bruce333-creator/ounce";
 /// Name of the exe attached to each Release.
 pub const ASSET: &str = "ounce.exe";
 pub const CURRENT: &str = env!("CARGO_PKG_VERSION");
